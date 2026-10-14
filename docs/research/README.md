@@ -1,5 +1,7 @@
 # Research
 
+The governing evidence, research-paper, and patent/prior-art registries are maintained in [`../PHASE_CHECKLIST.md`](../PHASE_CHECKLIST.md#5-source-and-evidence-register). Keep this directory for detailed evidence notes created during execution; do not create a second roadmap or registry here.
+
 Store project research notes and evidence here. Each research note should identify:
 
 - the question or decision it supports;
@@ -10,3 +12,5 @@ Store project research notes and evidence here. Each research note should identi
 - implications, risks, and suggested next action.
 
 Do not copy or modify synced material in `sources/`. Link to it or describe the derived insight instead.
+
+Current priority questions are licensing/derived-use rights, Trim-versus-Full reconstructability, same-jiffy ordering, order/trade quantity semantics, and evidence-backed execution assumptions. A research note may close a question only when it records the source, version/date, method, result, limitations, and decision impact.
