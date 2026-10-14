@@ -28,4 +28,4 @@ JFT is an evidence-gated research program for an NSE Cash Market short-horizon q
 
 ## Current state
 
-Phase 0 is in progress. The supplied-source inventory, rights matrix, and official legacy CM sample qualification are complete. The next gate is documented permission for the intended NSE historical-data use plus representative current CM Trim data and trigger files. Phase 1 parser/replay work must not begin until that gate passes, and feature/model work must not begin until deterministic reconstruction passes.
+Phase 0 is in progress. The 17-file supplied-source inventory, rights matrix, legacy CM historical/EOD sample qualification, and official legacy CM Order/Trade sample qualification are complete. The next gate is documented permission for the intended NSE historical-data use plus representative current CM Trim data and trigger files. Phase 1 parser/replay work must not begin until that gate passes, and feature/model work must not begin until deterministic reconstruction passes.

@@ -65,7 +65,7 @@ Legend: `[x]` verified complete, `[ ]` remaining, `[-]` intentionally skipped wi
 
 | Phase | Status | Gate outcome |
 |---|---|---|
-| 0 - Governance, evidence, licensing, data qualification | **In progress - source inventory and public-sample qualification complete** | Legal/data basis permits bounded reconstruction research |
+| 0 - Governance, evidence, licensing, data qualification | **In progress - 17-file source inventory and two CM sample-product qualifications complete** | Legal/data basis permits bounded reconstruction research |
 | 1 - Deterministic parser and book reconstruction | Not started | Canonical replay is identical and passes invariants |
 | 2 - Features, labels, baselines | Blocked by Phase 1 | Economically meaningful OOS signal beats naive baselines |
 | 3 - Execution-grade simulator | Blocked by Phase 2 | Signal survives conservative cost/fill/latency assumptions |
@@ -87,14 +87,15 @@ Legend: `[x]` verified complete, `[ ]` remaining, `[-]` intentionally skipped wi
 | `NSE_Hist_Order_Trade_Data_1.19_20260902144045.pdf`, v1.19, 03 Aug 2026 | **CONFIRMED FROM NSE DOCUMENTATION** | CM layouts, jiffies, availability, checksums, delivery, record history | Archive through the read-only source sync; verify against the subscribed product |
 | `NDAL-v.2024-Historical Order and Trade Data Agreement.docx` | **CONFIRMED FROM NSE DOCUMENTATION** | Use, confidentiality, redistribution, audit, disclaimer, indemnity | Not legal advice; apparent use conflict needs written NDAL/counsel resolution |
 | `NDAL-v.2024-Historical Trade Undertaking.doc` | **CONFIRMED FROM NSE DOCUMENTATION** | Corroborates restrictive historical-data terms | Older/general; Order and Trade agreement is more directly relevant |
-| Other supplied CM/EOD/segment documents | **UNRESOLVED / REQUIRES VALIDATION** | Possible master/reference and later-segment context | Catalogue individually before reliance |
+| `Data_details_CM_1.pdf` plus the CM EOD sample bundle | **CONFIRMED FROM NSE DOCUMENTATION** | Legacy CM bhavcopy/index/master/snapshot/trade schema and potential reference/reconciliation inputs | A different product from current Historical Orders & Trades; cannot qualify deterministic event replay |
+| Other supplied EOD/segment documents and samples | **UNRESOLVED / REQUIRES VALIDATION** | Possible reference and later-segment context | Catalogue individually; defer non-CM products until their approved phase |
 | Referenced `Compare Trading Algorithms` conversation | **DESIGN DECISION** | Thesis, architecture, model order, budgets, gates | Rationale, not evidence of law, market behavior, prices, or profitability |
 
 No attachment may be committed without confirming repository storage rights. `sources/` remains read-only and synchronization-owned.
 
 #### Phase 0 source manifest
 
-Hashes identify the exact supplied copies reviewed on 2026-10-15. They do not grant a right to store or use the content. The project source mirror currently contains no archived files, so archival remains open.
+Hashes identify the exact 17-file working bundle reviewed on 2026-10-15. They do not grant a right to store or use the content. The bundle remains outside Git and the project source mirror currently contains no archived files, so controlled archival remains open.
 
 | Supplied filename | Size / pages | SHA-256 | Phase 0 disposition |
 |---|---:|---|---|
@@ -102,14 +103,21 @@ Hashes identify the exact supplied copies reviewed on 2026-10-15. They do not gr
 | `NDAL-v.2024-Historical Order and Trade Data Agreement.docx` | 31,195 bytes | `b8605507bdef3a753ba6644669024612a5d5f080e62c8829a19e25a7bfb0dd28` | Governing legal template; executed Annexure II absent |
 | `NDAL-v.2024-Historical Trade Undertaking.doc` | 60,928 bytes | `0d406b1f198f897785df773ce3ec5114ef9dcd791cd2b13f1302480bd2b1fbf4` | Secondary legal comparison |
 | `EOD_CM_20251120105001.pdf` | 684,829 bytes / 23 pages | `ce8ac4ce858884392ccb68f4d74ac1549b20695da53824ed82cb7e03cac251b8` | Relevant for CM corporate/reference/EOD reconciliation candidates |
+| `Data_details_CM_1.pdf` | 136,529 bytes / 6 pages | `e8ac6bb76e428c1345827bc616faa4c0ff3043fb90e603338cf2599dcb9c2ff9` | Legacy CM historical-package specification; not the Order & Trade layout |
+| `Download Sample Files for CM (.zip)_0.zip` | 22,783,237 bytes | `306e5602a02795c3e8b00502f1c966a155aed962985e61360668de5cca6f43c1` | Legacy CM EOD/historical-product sample; qualified separately below |
+| `Sample_CMsegment.zip` | 9,201,101 bytes | `0469792bafa2320814edc526cfb2af50e7144d80c294a535666376b0d647bdb4` | Official legacy Full Orders/Trades public sample; qualified below |
 | `Download_End_of_the_Day_Data_Tariff_20260424120810.pdf` | 65,590 bytes / 1 page | `c73448b94520e3c1e228b1199eebb5b559a0734189db00f348efc357e7a6ec4e` | EOD display tariff only; not an Order & Trade historical-data quote |
 | `EOD_FAO_20251120105405.pdf` | 642,333 bytes / 20 pages | `7d2026c309c0ff721da207635e4807502eacb111d11f12ff1df369a2476bfc2f` | Deferred; derivatives are out of initial scope |
 | `EOD_CD_20251120105503.pdf` | 619,309 bytes / 18 pages | `5c09190d08c76e81569cc45f9a75d85758df46fc5289d90e09b2dc420c37b44c` | Deferred; currency derivatives are out of scope |
 | `EOD_WDM_20251120105551.pdf` | 596,824 bytes / 16 pages | `833ed1b00a70aee0700e00a19fd7649dbaf1d3f2f852f89064c0b488ddce6dfa` | Deferred; wholesale debt is out of scope |
 | `Data_Details_F_n_O.pdf` | 158,829 bytes / 7 pages | `69a2c3c1d0104bb177cd61c8d0b564ab9f35aea26194ed4a8a0ccc7e20b3e013` | Deferred until an approved derivatives phase |
 | `Data_Details_WDM.pdf` | 199,630 bytes / 3 pages | `6fbe1751e46243eb1ec31053cd72effb79639e2e5c308bebe23a254e544c7497` | Deferred; wholesale debt is out of scope |
+| `Sample_FOsegment.zip` | 9,267,715 bytes | `9d3eb704a03935b8a3c831c62a161a6070228dd17cce4f7320f400ab63062f85` | Deferred parser evidence; derivatives are out of initial scope |
+| `Sample_CDsegment.zip` | 3,046,002 bytes | `88bf9e3c68c6b792b44e403ccfb12d0fd80cc5920fdeb97e1c59a3bf41c8d8f7` | Deferred parser evidence; currency derivatives are out of scope |
+| `Sample_WDM.zip` | 219,228 bytes | `a56447a3ae268eca0c932bbf574c55302031a8b9f5c073af981831820b154919` | Deferred parser evidence; wholesale debt is out of scope |
+| `Download Sample Files for F&O.zip` | 50,244,150 bytes | `c883387f2b4d148a278d5e8b949d3006647ee0c2b278ebfa0cdd7d8a0b6f59bb` | Deferred EOD/reference sample; derivatives are out of initial scope |
 
-**UNRESOLVED / REQUIRES VALIDATION:** The earlier conversation refers to a CM historical-data detail document, but no such attachment is retrievable in the current source set. Actual subscribed CM Orders, Trades, trigger files, an executed agreement/Annexure II, and a historical Order & Trade tariff are also absent.
+**UNRESOLVED / REQUIRES VALIDATION:** Actual subscribed current CM Trim Orders, Trades, trigger files, an executed agreement/Annexure II, and a Historical Order & Trade tariff/quote are absent. The supplied CM historical package and public Order/Trade sample do not close those gaps.
 
 #### Current official acquisition channel
 
@@ -117,9 +125,9 @@ Hashes identify the exact supplied copies reviewed on 2026-10-15. They do not gr
 
 The supplied EOD tariff lists domestic CM EOD data at Rs 1,00,000 per display medium and requires consent for client usage. It must not be used as the budget for Historical Order & Trade data.
 
-#### Official CM public-sample qualification
+#### Official CM Order/Trade public-sample qualification
 
-The public sample was downloaded only to temporary storage and was not committed. Archive SHA-256: `0469792bafa2320814edc526cfb2af50e7144d80c294a535666376b0d647bdb4` (9,201,101 bytes).
+The supplied `Sample_CMsegment.zip` is byte-identical to the official public sample previously downloaded to temporary storage. It was inspected without committing its contents. Archive SHA-256: `0469792bafa2320814edc526cfb2af50e7144d80c294a535666376b0d647bdb4` (9,201,101 bytes).
 
 | File in official sample | Records | Width before LF | Finding |
 |---|---:|---:|---|
@@ -138,6 +146,28 @@ Observed sample diagnostics:
 - the data uses literal `b` characters in left-padded symbols, so production padding behavior must be checked against real subscribed bytes rather than inferred from this sample.
 
 **Phase 0 conclusion:** The public archive is suitable for legacy fixed-width parser fixtures and negative/incomplete-replay tests. It is not representative paired data and cannot satisfy the deterministic-reconstruction, Trim qualification, trigger-integrity, current-layout, or Trim-versus-Full gates.
+
+#### Legacy CM historical/EOD sample-product qualification
+
+**CONFIRMED FROM NSE DOCUMENTATION:** `Data_details_CM_1.pdf` defines a separate six-directory historical package: Bhav copy, Index, Masters, Snapshots, Trades, and Circulars. Its snapshots are point-in-time book states and its Trades data carries second-resolution timestamps; neither is the jiffy-timestamped lifecycle event stream defined by v1.19.
+
+The supplied `Download Sample Files for CM (.zip)_0.zip` contains seven nested sample archives matching that product family. Direct inspection found:
+
+| Sample component | Observed sample | Phase 0 use |
+|---|---:|---|
+| Index | 500,000 pipe-delimited rows; 3 fields | Index/context fixture only; placeholder data is not a representative trading day |
+| Snapshot | 500,000 rows; 14 pipe-delimited positions including trailing empty GTD date | Snapshot-schema and coarse book sanity fixture; not event replay |
+| Trades | 500,000 rows; 7 fields; second-resolution clock | Trade-schema fixture and possible aggregate reconciliation; no order references/jiffies |
+| Bhavcopy | 168,875 rows | Daily aggregate/reference reconciliation fixture |
+| PDBhavcopy | 22 dated January 2024 CSV files | Daily reference fixture |
+| Masters | Nested ZIP mislabeled `.gz` | Symbol/series/ISIN reference candidate; ingestion must detect content by magic bytes, not extension |
+| Circulars | Nested ZIP mislabeled `.gz` | Market-rule research source; not a parser input |
+
+The Index, Snapshot, and Trades payloads also use `.gz` names while containing plain ASCII rather than gzip streams. This reinforces the requirement to identify payloads from magic bytes/content and to quarantine extension/content mismatches instead of assuming decompression rules from names.
+
+**DESIGN DECISION:** Keep this package in a separate `legacy_cm_eod` data contract if it is later ingested. Never route it through the v1.19 Order/Trade parser or use its snapshots to claim exact queue history.
+
+**UNRESOLVED / REQUIRES VALIDATION:** The index, snapshot, and trade samples use placeholder filenames and appear synthetic or excerpted. Their dates, completeness, provenance, and suitability for quantitative validation are not established. They cannot satisfy the representative-day acquisition gate.
 
 #### Data-rights clause and clearance matrix
 
@@ -210,7 +240,12 @@ Any filing or commercial release requires professional patentability/FTO review.
 - **CONFIRMED FROM NSE DOCUMENTATION:** Current Full CM is 91-byte Orders/103-byte Trades. Historical parsing must handle 87/91-byte Orders and 100/101/103-byte Trades by date; 28 Mar 2025 is a documented 91/103 one-day exception, and 91/103 applies from 16 Jun 2025.
 - **CONFIRMED FROM NSE DOCUMENTATION:** CM files were split into streams from 01 Jul 2025; stream count may grow. A symbol may span streams when series differ.
 - **CONFIRMED FROM NSE DOCUMENTATION:** Per-file `.trg` files carry MD5 and compressed size. Layout notes show `CM_...`; trigger tables show `CASH_...`.
+- **CONFIRMED FROM NSE DOCUMENTATION:** Trim Orders and Trades are made available daily for the current date; Full Trades follow after 30 calendar days and Full Orders after 90 calendar days. The specification describes EOD SFTP, the NDAL downloader, Historical Data through AWS, and EOD Data through AWS as four delivery modes.
+- **CONFIRMED FROM NSE DOCUMENTATION:** SFTP retains the previous three days and gives provisional CM availability at 21:00 IST. Historical delivery is tentatively 01:00-03:00 IST. EOD cloud delivery begins after 23:00 IST and transfers only completed files.
+- **CONFIRMED FROM NSE DOCUMENTATION:** The documented cloud path copies compressed, unencrypted files from NDAL into a client-owned S3 bucket in `ap-south-1`; the example bucket policy grants NDAL's role broad object read/write/tag/ACL/list/multipart permissions. Same-region transfer is described as free, but that statement does not cover the project's storage, request, backup, security, or later-region-transfer costs.
+- **DESIGN DECISION:** If AWS delivery is approved, use a dedicated Mumbai-region ingestion bucket with no unrelated/proprietary objects, block public access, enable encryption/versioning/access logging, constrain retention, validate the final vendor principal/policy, and copy validated immutable objects into a separately controlled research zone. Do not paste the example policy onto a shared bucket.
 - **UNRESOLVED / REQUIRES VALIDATION:** Delivered prefixes, stream discovery, missing-stream representation, and trigger delimiters require real samples.
+- **UNRESOLVED / REQUIRES VALIDATION:** NDAL must confirm whether its production transfer can use a narrower write-only prefix policy, SSE-KMS, object ownership without ACLs, and an NDAL-controlled manifest/checksum stronger than MD5.
 - **UNRESOLVED / REQUIRES VALIDATION:** Trim appears sufficient for aggregate replay, but the specification does not explicitly settle post-trade quantity semantics, modify priority, cross-file ties, or exact queue reconstruction. Sample replay is the gate.
 
 ### 6.2 CM Trim Orders exact fixed-width layout
@@ -416,8 +451,9 @@ No fill occurs because a bar touched a price. Marketable orders consume observab
 
 - [x] Preserve the read-only `sources/` boundary and linked governance records.
 - [x] Establish this governing plan and evidence labels.
-- [x] Hash and catalogue all ten retrievable supplied files without copying restricted content into Git.
-- [x] Verify the current official subscription/contact channel and download/inspect the official public CM sample.
+- [x] Hash and catalogue all 17 files in the supplied working bundle without copying restricted content into Git.
+- [x] Verify the current official subscription/contact channel and inspect the official public CM Order/Trade sample.
+- [x] Classify and qualify the separate legacy CM historical/EOD sample product; prevent it from being treated as current lifecycle-event data.
 - [x] Produce the initial data-rights clause matrix and ready-to-send NDAL clarification request.
 - [ ] Archive/version supplied documents through the source-sync process; record hashes without committing restricted content.
 - [ ] Obtain the executed subscription/order form and Historical Order & Trade tariff plus delivery/retention/site/cloud/user/derived-output terms, audit duties, termination/deletion rules, and redistribution limits; the supplied EOD tariff is not sufficient.
@@ -427,7 +463,7 @@ No fill occurs because a bar touched a price. Marketable orders consume observab
 - [ ] Acquire representative paired CM Trim Orders/Trades and `.trg` files across ordinary, volatile, special/low-volume, pre-open, regular, and closing-auction periods.
 - [ ] If allowed/affordable, acquire matched Trim/Full days for field and replay comparison.
 - [ ] Inventory real subscribed dates, symbols/series, streams, sizes, counts, jiffy ranges, missing files, exact names, schema eras, corporate actions, and reference data; the public legacy sample does not complete this item.
-- [ ] Review SFTP SSH-key/static-IP or client-owned Mumbai S3 delivery, least privilege, encryption, retention, deletion, and audit logging.
+- [ ] Obtain production SFTP/cloud onboarding details and approve one delivery path: SFTP SSH-key/static-IP, or a dedicated client-owned Mumbai S3 ingestion bucket with least privilege, encryption, retention, deletion, and audit logging. The broad example S3 policy is not pre-approved.
 - [ ] Verify paper citations and patent identifiers; record reproduction/legal needs.
 - [ ] Approve the Phase 1 budget and research-spend stop-loss.
 
