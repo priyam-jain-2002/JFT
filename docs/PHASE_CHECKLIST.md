@@ -65,7 +65,7 @@ Legend: `[x]` verified complete, `[ ]` remaining, `[-]` intentionally skipped wi
 
 | Phase | Status | Gate outcome |
 |---|---|---|
-| 0 - Governance, evidence, licensing, data qualification | **In progress** | Legal/data basis permits bounded reconstruction research |
+| 0 - Governance, evidence, licensing, data qualification | **In progress - source inventory and public-sample qualification complete** | Legal/data basis permits bounded reconstruction research |
 | 1 - Deterministic parser and book reconstruction | Not started | Canonical replay is identical and passes invariants |
 | 2 - Features, labels, baselines | Blocked by Phase 1 | Economically meaningful OOS signal beats naive baselines |
 | 3 - Execution-grade simulator | Blocked by Phase 2 | Signal survives conservative cost/fill/latency assumptions |
@@ -91,6 +91,87 @@ Legend: `[x]` verified complete, `[ ]` remaining, `[-]` intentionally skipped wi
 | Referenced `Compare Trading Algorithms` conversation | **DESIGN DECISION** | Thesis, architecture, model order, budgets, gates | Rationale, not evidence of law, market behavior, prices, or profitability |
 
 No attachment may be committed without confirming repository storage rights. `sources/` remains read-only and synchronization-owned.
+
+#### Phase 0 source manifest
+
+Hashes identify the exact supplied copies reviewed on 2026-10-15. They do not grant a right to store or use the content. The project source mirror currently contains no archived files, so archival remains open.
+
+| Supplied filename | Size / pages | SHA-256 | Phase 0 disposition |
+|---|---:|---|---|
+| `NSE_Hist_Order_Trade_Data_1.19_20260902144045.pdf` | 1,813,532 bytes / 85 pages | `8521521dbe048338ac1a2f9ba3593972c7c85d09aa8346b4165c431d3f8ea16b` | Governing technical specification |
+| `NDAL-v.2024-Historical Order and Trade Data Agreement.docx` | 31,195 bytes | `b8605507bdef3a753ba6644669024612a5d5f080e62c8829a19e25a7bfb0dd28` | Governing legal template; executed Annexure II absent |
+| `NDAL-v.2024-Historical Trade Undertaking.doc` | 60,928 bytes | `0d406b1f198f897785df773ce3ec5114ef9dcd791cd2b13f1302480bd2b1fbf4` | Secondary legal comparison |
+| `EOD_CM_20251120105001.pdf` | 684,829 bytes / 23 pages | `ce8ac4ce858884392ccb68f4d74ac1549b20695da53824ed82cb7e03cac251b8` | Relevant for CM corporate/reference/EOD reconciliation candidates |
+| `Download_End_of_the_Day_Data_Tariff_20260424120810.pdf` | 65,590 bytes / 1 page | `c73448b94520e3c1e228b1199eebb5b559a0734189db00f348efc357e7a6ec4e` | EOD display tariff only; not an Order & Trade historical-data quote |
+| `EOD_FAO_20251120105405.pdf` | 642,333 bytes / 20 pages | `7d2026c309c0ff721da207635e4807502eacb111d11f12ff1df369a2476bfc2f` | Deferred; derivatives are out of initial scope |
+| `EOD_CD_20251120105503.pdf` | 619,309 bytes / 18 pages | `5c09190d08c76e81569cc45f9a75d85758df46fc5289d90e09b2dc420c37b44c` | Deferred; currency derivatives are out of scope |
+| `EOD_WDM_20251120105551.pdf` | 596,824 bytes / 16 pages | `833ed1b00a70aee0700e00a19fd7649dbaf1d3f2f852f89064c0b488ddce6dfa` | Deferred; wholesale debt is out of scope |
+| `Data_Details_F_n_O.pdf` | 158,829 bytes / 7 pages | `69a2c3c1d0104bb177cd61c8d0b564ab9f35aea26194ed4a8a0ccc7e20b3e013` | Deferred until an approved derivatives phase |
+| `Data_Details_WDM.pdf` | 199,630 bytes / 3 pages | `6fbe1751e46243eb1ec31053cd72effb79639e2e5c308bebe23a254e544c7497` | Deferred; wholesale debt is out of scope |
+
+**UNRESOLVED / REQUIRES VALIDATION:** The earlier conversation refers to a CM historical-data detail document, but no such attachment is retrievable in the current source set. Actual subscribed CM Orders, Trades, trigger files, an executed agreement/Annexure II, and a historical Order & Trade tariff are also absent.
+
+#### Current official acquisition channel
+
+**CONFIRMED FROM NSE DOCUMENTATION:** On 2026-10-15, the [official NSE EOD/Historical subscription page](https://www.nseindia.com/static/market-data/eod-historical-data-subscription) was updated 02 Sep 2026 and stated that EOD Order & Trade data is delivered through SFTP, Historical Order & Trade data through the online platform, and CM coverage includes order/trade information plus index value. It links a public CM sample and directs subscription questions to `marketdata@nse.co.in` / `+91-22-2659 8385`. The [NSE Data & Analytics vending page](https://www.nseindia.com/static/nse-data-and-analytics/data-information-vending) lists pricing effective 01 Apr 2026, but a current product-specific written quote and permitted-use terms are still required.
+
+The supplied EOD tariff lists domestic CM EOD data at Rs 1,00,000 per display medium and requires consent for client usage. It must not be used as the budget for Historical Order & Trade data.
+
+#### Official CM public-sample qualification
+
+The public sample was downloaded only to temporary storage and was not committed. Archive SHA-256: `0469792bafa2320814edc526cfb2af50e7144d80c294a535666376b0d647bdb4` (9,201,101 bytes).
+
+| File in official sample | Records | Width before LF | Finding |
+|---|---:|---:|---|
+| `CASH_Index_DDMMYYYY.txt` | 22,500 | 38 | Index stream with placeholder date filename |
+| `CASH_Orders_DDMMYYYY.txt` | 300,000 | 87 | Legacy Full CM order width, not current Full 91 or Trim 68 |
+| `CASH_Trades_DDMMYYYY.txt` | 300,000 | 100 | Legacy Full CM trade width, not current Full 103 or Trim 82 |
+
+Observed sample diagnostics:
+
+- order events: 213,707 entries, 68,121 modifications, 18,172 cancellations; 138,838 buys and 161,162 sells;
+- order sessions: 157,484 `PO` and 142,516 `RM`; trade sessions: 15,122 `PO` and 284,878 `RM`;
+- jiffies were non-decreasing within each Orders and Trades file and no adjacent equal-jiffy records appeared;
+- all 300,000 trade numbers were unique, while 213,527 distinct order numbers appeared;
+- only 44,520 buy-order references (14.84%) and 45,129 sell-order references (15.04%) matched an order number present in the sample Orders file;
+- there are no `.trg` files, split streams, Trim records, or closing-auction (`CA`) examples; and
+- the data uses literal `b` characters in left-padded symbols, so production padding behavior must be checked against real subscribed bytes rather than inferred from this sample.
+
+**Phase 0 conclusion:** The public archive is suitable for legacy fixed-width parser fixtures and negative/incomplete-replay tests. It is not representative paired data and cannot satisfy the deterministic-reconstruction, Trim qualification, trigger-integrity, current-layout, or Trim-versus-Full gates.
+
+#### Data-rights clause and clearance matrix
+
+**Clearance state: OPEN.** No executed Annexure II, written NDAL interpretation, or counsel/owner approval record is available in the repository.
+
+| Agreement topic | Supplied wording/effect | Project treatment | Evidence needed to close |
+|---|---|---|---|
+| Internal use | Use is limited to internal purposes described in Annexure II | Offline work must remain within the executed use description | Executed agreement and Annexure II |
+| Raw-data redistribution | Publication/reproduction/redistribution requires prior written consent | No raw or reconstructive data in Git, logs, reports, or third-party services | NDAL confirmation of allowed users, systems, sites, and processors |
+| Generated output | Output redistribution is restricted except as Annexure II permits | Treat features, datasets, weights, metrics, and reports as potentially restricted | Written classification of each derived artifact |
+| Commercial/financial gain | Data must not be exploited commercially or for financial gain/profit | Hard hold on profit-seeking/live use | Written NDAL interpretation plus legal review |
+| Trading/investment decisions | A later clause contemplates lawful activities facilitating trading/investment decisions | This conflicts with the financial-gain restriction; do not resolve by inference | Written reconciliation from NDAL |
+| Platform/simulation/gaming | Platform/app/website, virtual trading, simulation, and gaming language is restrictive/ambiguous | Internal simulator and any future product require express treatment | Written permission/scope for backtest, simulator, paper trading, and product |
+| Confidentiality/access | Access is need-to-know and employees require confidentiality commitments | Least privilege, access register, encryption, no public artifacts | Approved user/site/cloud list and confidentiality process |
+| Audit/penalty | NDAL may inspect records/logs/systems and impose penalties/terminate for lapses | Retain auditable access/processing/deletion logs without leaking data | Audit-scope, retention, and evidence requirements |
+| Accuracy/sequence | NDAL disclaims sequence, accuracy, completeness, and error-free delivery | Parser/replay must detect and evidence defects; vendor data is not presumed correct | Sample qualification and defect-escalation procedure |
+| Cloud/retention/termination | Not resolved by the supplied template | Do not assume AWS, backups, DR copies, or post-termination retention | Written cloud, region, subprocessors, backup, retention, and deletion terms |
+
+#### NDAL clarification request packet
+
+Send to `marketdata@nse.co.in` with subject `Clarification of permitted use - CM Historical Order and Trade Data`. Attach the exact proposed Annexure-II wording and request a written answer to each question:
+
+1. May the subscriber use CM Historical Orders/Trades internally to backtest and train statistical/ML models?
+2. May derived features, labels, embeddings, model weights, calibration parameters, and non-reconstructive aggregate metrics be retained and used after training?
+3. May those models inform or execute proprietary trades for the subscriber's own account and generate financial gain? How should this be reconciled with the no-commercial-use/no-financial-gain clause?
+4. Are internal deterministic replay, execution simulation, paper trading, and live shadow evaluation permitted? Does the platform/app/simulation clause restrict any of them?
+5. May processing occur in a subscriber-controlled AWS Mumbai account? Which employees, contractors, managed services, regions, sites, backups, and disaster-recovery copies are allowed?
+6. What data/output may be shown to advisers, auditors, counsel, investors, regulators, or in aggregated research without separate consent?
+7. What retention, deletion, backup purge, audit-log, confidentiality-undertaking, and post-termination obligations apply?
+8. Are CM Trim Orders/Trades licensed on the same use terms as Full? What are current tariffs, minimum period/site/user terms, and cloud/SFTP charges?
+9. Can NDAL provide representative current Trim 68/82 and Full 91/103 paired sample days with trigger files and written answers on same-jiffy ordering, modify/cancel quantities, and trade-driven quantity reduction?
+10. Would an external multi-user backtest/paper/live platform require a separate redistribution/non-display/product license, and is it prohibited under the supplied agreement?
+
+To mark the legal gate cleared, record the dated NDAL response, exact executed agreement/Annexure II, permitted and prohibited use matrix, conditions, legal reviewer, project-owner approval, and next review trigger. An unsupported status change is not clearance.
 
 ### 5.2 Research-paper registry
 
@@ -335,14 +416,17 @@ No fill occurs because a bar touched a price. Marketable orders consume observab
 
 - [x] Preserve the read-only `sources/` boundary and linked governance records.
 - [x] Establish this governing plan and evidence labels.
+- [x] Hash and catalogue all ten retrievable supplied files without copying restricted content into Git.
+- [x] Verify the current official subscription/contact channel and download/inspect the official public CM sample.
+- [x] Produce the initial data-rights clause matrix and ready-to-send NDAL clarification request.
 - [ ] Archive/version supplied documents through the source-sync process; record hashes without committing restricted content.
-- [ ] Obtain the subscription/order form, tariff, delivery/retention/site/cloud/user/derived-output terms, audit duties, termination/deletion rules, and redistribution limits.
+- [ ] Obtain the executed subscription/order form and Historical Order & Trade tariff plus delivery/retention/site/cloud/user/derived-output terms, audit duties, termination/deletion rules, and redistribution limits; the supplied EOD tariff is not sufficient.
 - [ ] Send NDAL the precise intended uses: proprietary training/backtesting, simulator, derived features/models, cloud processing, live proprietary trading, retention, DR, and optional future platform.
 - [ ] Obtain written NDAL clarification and counsel review of the conflict among internal use, no commercial use/financial gain, and Annexure-II use facilitating trading/investment decisions.
 - [ ] Confirm whether weights, features, aggregate metrics, paper results, and trade decisions are restricted outputs/derivatives.
 - [ ] Acquire representative paired CM Trim Orders/Trades and `.trg` files across ordinary, volatile, special/low-volume, pre-open, regular, and closing-auction periods.
 - [ ] If allowed/affordable, acquire matched Trim/Full days for field and replay comparison.
-- [ ] Inventory dates, symbols/series, streams, sizes, counts, jiffy ranges, missing files, exact names, schema eras, corporate actions, and reference data.
+- [ ] Inventory real subscribed dates, symbols/series, streams, sizes, counts, jiffy ranges, missing files, exact names, schema eras, corporate actions, and reference data; the public legacy sample does not complete this item.
 - [ ] Review SFTP SSH-key/static-IP or client-owned Mumbai S3 delivery, least privilege, encryption, retention, deletion, and audit logging.
 - [ ] Verify paper citations and patent identifiers; record reproduction/legal needs.
 - [ ] Approve the Phase 1 budget and research-spend stop-loss.
