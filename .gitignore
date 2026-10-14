@@ -1,0 +1,30 @@
+# Operating-system and editor files
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Logs, caches, and generated output
+*.log
+.cache/
+tmp/
+dist/
+build/
+coverage/
+
+# Common dependency and language caches
+node_modules/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
