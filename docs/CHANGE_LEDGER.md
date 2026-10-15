@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-16 - Expose and contain the NSE jiffy-epoch inconsistency
+
+- **Changed:** Removed the unsupported UTC implication from the Rust jiffy API and governing plan, retained only lossless raw/integer decomposition, added a regression test for the published offset discrepancy, and added a precise vendor clarification question.
+- **Why:** NSE v1.19 says the epoch is 1980-01-01 00:00:00 GMT but publishes a `315513000`-second Unix offset. The actual UTC offset is `315532800` seconds; the 19,800-second difference is exactly IST (05:30). Silently choosing either interpretation would contaminate timestamps, session dates, ordering diagnostics, labels, and later backtests.
+- **Validation:** The independent calendar calculation and Rust regression test prove the 19,800-second discrepancy. All 19 Rust tests pass; formatting, compilation, and strict Clippy pass. No UTC conversion is exposed while the source contradiction remains unresolved.
+- **Related:** DEC-2026-004, DEC-2026-008; Phase 1 jiffy policy.
+- **Follow-up:** Resolve the epoch from representative dated files and a written NSE/vendor answer before exposing UTC/session-date fields; continue Phase 1 with lossless raw-jiffy provenance.
+
+---
+
 ## 2026-10-16 - Exhaust the current Trim field-validation matrix
 
 - **Changed:** Extended the Rust integration suite across every numeric byte, all documented sessions/sides/activities, zero-value rules, unknown segment/enum handling, non-ASCII text, included-LF rejection, and literal-`b` symbol padding.

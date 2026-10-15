@@ -200,6 +200,7 @@ This checklist is retained so the external dependency is not forgotten; completi
 8. Are CM Trim Orders/Trades licensed on the same use terms as Full? What are current tariffs, minimum period/site/user terms, and cloud/SFTP charges?
 9. Can NDAL provide representative current Trim 68/82 and Full 91/103 paired sample days with trigger files and written answers on same-jiffy ordering, modify/cancel quantities, and trade-driven quantity reduction?
 10. Would an external multi-user backtest/paper/live platform require a separate redistribution/non-display/product license, and is it prohibited under the supplied agreement?
+11. Is the exchange-jiffy epoch actually `1980-01-01 00:00:00 UTC`, or local IST midnight? Please reconcile the v1.19 prose with its published `315513000`-second Unix-offset constant, which is 19,800 seconds smaller than the actual UTC offset of `315532800` seconds.
 
 Before operational live-data use, capital deployment, redistribution, or external-product release, the owner should retain the dated NDAL response, executed agreement/Annexure II, permitted/prohibited-use matrix, conditions, legal reviewer, approval, and next review trigger outside or alongside the appropriate operational governance process. The repository does not determine or certify legal compliance.
 
@@ -328,18 +329,19 @@ Current Full CM Trades (103 bytes):
 
 ### 6.5 Jiffy policy
 
-- **CONFIRMED FROM NSE DOCUMENTATION:** 65,536 jiffies equal one second, counted from 01 Jan 1980 00:00:00 GMT. NSE's example converts to Unix time then adds 05:30 for IST display; it warns Excel is millisecond-limited.
+- **CONFIRMED FROM NSE DOCUMENTATION:** 65,536 jiffies equal one second. The v1.19 prose says the counter starts at 01 Jan 1980 00:00:00 GMT; its worked conversion instead uses a `315513000`-second Unix offset and then adds 05:30 for IST display. It warns Excel is millisecond-limited.
+- **CONFIRMED FROM INDEPENDENT ARITHMETIC:** The actual Unix-to-1980-01-01-UTC offset is `315532800` seconds. NSE's published constant is 19,800 seconds smaller, exactly 05:30. Therefore the prose, constant, and timezone step do not jointly define one unambiguous UTC conversion.
 - **DESIGN DECISION:** `exchange_jiffy` is an exact unsigned integer copied from the 14 bytes.
-- **DESIGN DECISION:** Convert with integer/rational arithmetic and retain the fractional remainder; never round-trip through float.
-- **DESIGN DECISION:** Store UTC; derive session date/display in `Asia/Kolkata`.
+- **DESIGN DECISION:** Decompose with integer/rational arithmetic and retain the fractional remainder; never round-trip through float.
+- **DESIGN DECISION:** Do not emit or label a UTC timestamp, session date, or timezone-derived display until the epoch ambiguity is resolved. The raw jiffy, integer whole-second quotient, and remainder remain canonical and lossless.
 - **DESIGN DECISION:** Same-jiffy events retain file/stream/record provenance. A reproducible tie-breaker is not claimed as exchange causality.
-- **UNRESOLVED / REQUIRES VALIDATION:** Cross-stream and Orders-vs-Trades tie ordering, per-stream monotonicity, and session edge cases.
+- **UNRESOLVED / REQUIRES VALIDATION:** Resolve the epoch using a written NSE/vendor answer and representative files whose trading date/time can be independently checked. Also validate cross-stream and Orders-vs-Trades tie ordering, per-stream monotonicity, and session edge cases.
 
 ```text
-whole_seconds = exchange_jiffy // 65536
+whole_exchange_seconds = exchange_jiffy // 65536
 subsecond_jiffies = exchange_jiffy % 65536
-utc = 1980-01-01T00:00:00Z + whole_seconds
 fraction = subsecond_jiffies / 65536 second
+UTC conversion = intentionally unavailable until epoch validation
 ```
 
 ### 6.6 Canonical schemas
@@ -410,7 +412,7 @@ Monitor schema/data quality, feature/prediction/calibration/outcome/regime drift
 
 ### 8.4 Rust/Python boundary
 
-- **DESIGN DECISION:** Rust owns the deterministic data plane from compressed/raw NSE bytes through integrity checks, version-aware fixed-width parsing, exact jiffy conversion, canonical event construction, lifecycle reduction, order-book replay, reconciliation, quarantine, checkpoint hashes, and canonical columnar output.
+- **DESIGN DECISION:** Rust owns the deterministic data plane from compressed/raw NSE bytes through integrity checks, version-aware fixed-width parsing, exact raw-jiffy preservation/decomposition, validated timestamp conversion, canonical event construction, lifecycle reduction, order-book replay, reconciliation, quarantine, checkpoint hashes, and canonical columnar output.
 - **DESIGN DECISION:** Python begins at the versioned canonical-data boundary. It owns research orchestration, diagnostics, feature and label generation, datasets, baselines, model training, evaluation, and visualization. Python must not independently parse raw NSE Order/Trade bytes or become the authoritative order-book implementation.
 - **DESIGN DECISION:** The initial cross-language interface is file/process based: versioned Parquet or Arrow IPC datasets plus JSON manifests, schemas, anomaly reports, and hashes emitted by a Rust CLI. Do not introduce PyO3/FFI or an in-process Python extension until profiling demonstrates a concrete need.
 - **DESIGN DECISION:** Rust and Python share language-neutral schema definitions, integer units, nullability, enum codes, provenance fields, and deterministic fixture expectations. Python reader tests must reject unknown schema versions and verify row counts, manifest hashes, jiffy bounds, and checkpoint identities.
@@ -508,7 +510,8 @@ Orders + Trades -> integrity -> parser -> raw-event validation -> jiffy validati
 - [ ] Discover all parts/streams rather than hard-code a count; reject missing/duplicate parts.
 - [ ] Implement date/version-aware schemas for Trim 68/82 and required Full variants.
 - [ ] Preserve raw bytes/padding/file/stream/index/jiffy and a reason for every quarantine.
-- [ ] Test jiffy epoch, day boundaries, NSE example, fractional remainder, timezone display, and ties.
+- [x] Preserve and decompose raw jiffies exactly; test the NSE example and fractional remainder; prove that NSE's published epoch constant differs from the actual UTC offset by exactly 19,800 seconds.
+- [ ] Resolve the jiffy epoch, then test independently known timestamps, day boundaries, timezone display, and ties before exposing UTC/session-date fields.
 - [ ] Profile per-stream monotonicity, equal-jiffy groups, overlap, and trade-reference timing before merge policy.
 - [ ] Implement explicit entry/modify/cancel reducer and anomaly classes; no silent repair.
 - [ ] Reconstruct order- and price-level state by instrument/session; hash checkpoints/final state.
@@ -753,7 +756,7 @@ Stop the engineering project or alpha path if, after a predeclared remediation a
 
 1. Consult and freeze the Phase 1 canonical schema, compatibility policy, Rust parser interfaces, error taxonomy, deterministic event keys, and byte-accounting rules; the Rust/Python ownership boundary itself is already frozen.
 2. Expand the synthetic, non-licensed golden fixtures from the verified entry/trade slice to remaining side/activity/session combinations, timestamp edges, and malformed-input classes before lifecycle work.
-3. Implement date/version-aware layout validation, exact jiffy conversion, and quarantine behavior before book logic.
+3. Implement date/version-aware layout validation, exact raw-jiffy handling, validation-gated timestamp conversion, and quarantine behavior before book logic.
 4. Use the qualified public legacy sample only for legacy-width parser and incomplete-replay tests; do not treat it as representative market evidence.
 5. Add current paired CM Trim files/triggers when available and resolve streams, ties, modify/cancel quantities, and trade reductions before Phase 1 acceptance.
 6. Keep legal/compliance as an external “needs to be done” marker; it must not block offline repository engineering and the repository must not claim clearance.
