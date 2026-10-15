@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-16 - Exhaust the current Trim field-validation matrix
+
+- **Changed:** Extended the Rust integration suite across every numeric byte, all documented sessions/sides/activities, zero-value rules, unknown segment/enum handling, non-ASCII text, included-LF rejection, and literal-`b` symbol padding.
+- **Why:** Demonstrate strict byte accounting and evidence-preserving failure behavior before freezing schemas or introducing lifecycle state.
+- **Validation:** All 18 tests pass. The numeric mutation loops exercise all 48 Order numeric positions and all 64 Trade numeric positions; each mutation is attributed to the correct field. Formatting, compilation, and strict Clippy also pass. Literal `b` bytes are preserved verbatim rather than treated as blanks.
+- **Related:** DEC-2026-004, DEC-2026-008; Phase 1.
+- **Follow-up:** Freeze the versioned canonical schema and manifest/provenance contract before adding lifecycle reduction.
+
+---
+
 ## 2026-10-16 - Verify the first CM Trim parser slice
 
 - **Changed:** Added contiguous 68-byte Order and 82-byte Trade layouts, exact `u64` jiffy representation, canonical Rust event types, strict fixed-width parsing, raw-byte preservation, lossless field-addressed quarantine, and synthetic Order/Trade golden fixtures.
