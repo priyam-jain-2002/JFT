@@ -15,7 +15,10 @@ JFT is an evidence-gated research program for an NSE Cash Market short-horizon q
 ```text
 .
 ├── AGENTS.md                         # Agent and contributor operating guide
+├── Cargo.toml                        # Rust workspace
 ├── README.md                        # Project entry point
+├── crates/
+│   └── jft-nse-cm/                  # Authoritative Rust NSE CM data plane
 ├── docs/
 │   ├── CHANGE_LEDGER.md             # Append-only record of meaningful changes
 │   ├── PHASE_CHECKLIST.md            # Governing PRD, architecture, data contract, and phases 0-11
@@ -23,6 +26,9 @@ JFT is an evidence-gated research program for an NSE Cash Market short-horizon q
 │   │   ├── COMPACT_DECISION_LOG.md  # Brief decision index
 │   │   └── DECISION_LOG.md          # Full decision records
 │   └── research/                    # Evidence and research notes
+├── python/jft/                      # Downstream Python research plane
+├── schemas/nse_cm/                  # Language-neutral canonical contracts
+├── tests/fixtures/nse_cm/           # Synthetic, non-licensed golden fixtures
 └── sources/                          # Read-only synced reference material
 ```
 
@@ -30,4 +36,15 @@ JFT is an evidence-gated research program for an NSE Cash Market short-horizon q
 
 Phase 1 fixture-first engineering is authorized. Rust owns source integrity, raw NSE parsing, exact jiffy conversion, lifecycle reduction, book replay, reconciliation, quarantine, and canonical Arrow/Parquet output. Python starts at that canonical boundary for diagnostics, features, labels, datasets, and modeling; it must not duplicate the raw parser or authoritative book.
 
+The dependency-free Rust workspace and tracked Rust/Python/schema/fixture boundaries are now scaffolded and pass formatting, compilation, tests, and Clippy. No canonical schema or exchange-event semantics have been frozen yet.
+
 Phase 0 remains open only for technical work that cannot be completed from the supplied samples: representative paired current CM Trim Orders/Trades and triggers, actual stream/schema inventory, delivery controls, and budget approval. These items do not block initial Phase 1 fixtures and interfaces, but representative current data is required to accept Phase 1. Legal/compliance remains visibly marked as something the owner needs to complete before operational activation, outside repository scope.
+
+## Current engineering checks
+
+```bash
+cargo fmt --all --check
+cargo check --workspace --all-targets
+cargo test --workspace --all-targets
+cargo clippy --workspace --all-targets -- -D warnings
+```

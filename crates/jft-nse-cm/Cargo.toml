@@ -1,0 +1,9 @@
+[package]
+name = "jft-nse-cm"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+name = "jft_nse_cm"
+path = "src/lib.rs"
