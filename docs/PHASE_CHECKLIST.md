@@ -4,7 +4,7 @@
 
 This is the single execution source of truth for JFT. It combines the product brief, technical architecture, data contract, research plan, acceptance gates, kill criteria, and phase checklist for an NSE-focused short-horizon quantitative trading system. It replaces the generic lifecycle checklist; it does not authorize trading or establish that the strategy is profitable or legally permitted.
 
-- **Document status:** Governing plan; Phase 1 scaffold complete, parser semantics not yet frozen
+- **Document status:** Governing plan; Phase 1 current-Trim parser slice verified, replay semantics not yet frozen
 - **Current phase:** Phase 1 - deterministic parser and book reconstruction
 - **Last updated:** 2026-10-15
 - **Decision owner:** Project owner
@@ -66,7 +66,7 @@ Legend: `[x]` verified complete, `[ ]` remaining, `[-]` intentionally skipped wi
 | Phase | Status | Gate outcome |
 |---|---|---|
 | 0 - Governance, evidence, data qualification; external compliance marker | **In progress as a non-blocking parallel technical track** | Representative current data, delivery controls, and budget are qualified |
-| 1 - Deterministic parser and book reconstruction | **Active - dependency-free Rust/Python boundary scaffold complete** | Canonical replay is identical and passes invariants; representative current data is required for final acceptance |
+| 1 - Deterministic parser and book reconstruction | **Active - current Trim layout/parser/quarantine slice verified** | Canonical replay is identical and passes invariants; representative current data is required for final acceptance |
 | 2 - Features, labels, baselines | Blocked by Phase 1 | Economically meaningful OOS signal beats naive baselines |
 | 3 - Execution-grade simulator | Blocked by Phase 2 | Signal survives conservative cost/fill/latency assumptions |
 | 4 - Neural representation learning | Blocked by Phase 3 | Neural model adds stable OOS net value |
@@ -502,6 +502,7 @@ Orders + Trades -> integrity -> parser -> raw-event validation -> jiffy validati
 **Work packages:**
 
 - [x] Create the dependency-free Cargo workspace and tracked Rust/Python/schema/synthetic-fixture boundaries; verify format, compile, tests, and Clippy without freezing record semantics.
+- [x] Define contiguous current CM Trim 68-byte Order and 82-byte Trade layouts; parse one synthetic golden record of each, preserve exact input bytes, and quarantine wrong width, invalid numerics, zero quantity, and unknown activity with field evidence.
 - [ ] Freeze compressed inputs; verify trigger MD5/size, compute SHA-256, write manifest.
 - [ ] Discover all parts/streams rather than hard-code a count; reject missing/duplicate parts.
 - [ ] Implement date/version-aware schemas for Trim 68/82 and required Full variants.
@@ -750,7 +751,7 @@ Stop the engineering project or alpha path if, after a predeclared remediation a
 ## 14. Immediate next actions
 
 1. Consult and freeze the Phase 1 canonical schema, compatibility policy, Rust parser interfaces, error taxonomy, deterministic event keys, and byte-accounting rules; the Rust/Python ownership boundary itself is already frozen.
-2. Create synthetic, non-licensed golden fixtures for every CM Trim record type, lifecycle transition, timestamp edge, and malformed-input class.
+2. Expand the synthetic, non-licensed golden fixtures from the verified entry/trade slice to remaining side/activity/session combinations, timestamp edges, and malformed-input classes before lifecycle work.
 3. Implement date/version-aware layout validation, exact jiffy conversion, and quarantine behavior before book logic.
 4. Use the qualified public legacy sample only for legacy-width parser and incomplete-replay tests; do not treat it as representative market evidence.
 5. Add current paired CM Trim files/triggers when available and resolve streams, ties, modify/cancel quantities, and trade reductions before Phase 1 acceptance.

@@ -36,7 +36,7 @@ JFT is an evidence-gated research program for an NSE Cash Market short-horizon q
 
 Phase 1 fixture-first engineering is authorized. Rust owns source integrity, raw NSE parsing, exact jiffy conversion, lifecycle reduction, book replay, reconciliation, quarantine, and canonical Arrow/Parquet output. Python starts at that canonical boundary for diagnostics, features, labels, datasets, and modeling; it must not duplicate the raw parser or authoritative book.
 
-The dependency-free Rust workspace and tracked Rust/Python/schema/fixture boundaries are now scaffolded and pass formatting, compilation, tests, and Clippy. No canonical schema or exchange-event semantics have been frozen yet.
+The dependency-free Rust workspace and tracked Rust/Python/schema/fixture boundaries are scaffolded. The first evidence-backed vertical slice now defines the documented CM Trim 68-byte Order and 82-byte Trade layouts, exact integer jiffies, strict parsing, raw-byte preservation, and lossless quarantine. Ten Rust tests pass together with formatting, compilation, and strict Clippy. Lifecycle, book, cross-stream ordering, and trade-decrement semantics remain intentionally unimplemented.
 
 Phase 0 remains open only for technical work that cannot be completed from the supplied samples: representative paired current CM Trim Orders/Trades and triggers, actual stream/schema inventory, delivery controls, and budget approval. These items do not block initial Phase 1 fixtures and interfaces, but representative current data is required to accept Phase 1. Legal/compliance remains visibly marked as something the owner needs to complete before operational activation, outside repository scope.
 
