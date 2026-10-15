@@ -18,7 +18,9 @@ This is the authoritative record of consequential product, technical, tooling, a
 | DEC-2026-003 | 2026-10-15 | Adopt an evidence-gated NSE CM research path | Active | — | — |
 | DEC-2026-004 | 2026-10-15 | Qualify CM Trim before purchasing or depending on Full | Active | — | — |
 | DEC-2026-005 | 2026-10-15 | Separate prediction, execution, and hard risk | Active | — | — |
-| DEC-2026-006 | 2026-10-15 | Hold live and profit-seeking use behind written data-rights clearance | Active | — | — |
+| DEC-2026-006 | 2026-10-15 | Hold live and profit-seeking use behind written data-rights clearance | Superseded | — | DEC-2026-007 |
+| DEC-2026-007 | 2026-10-15 | Treat legal compliance as an external operational dependency | Active | DEC-2026-006 | — |
+| DEC-2026-008 | 2026-10-15 | Keep deterministic market-data replay in Rust and research in Python | Active | — | — |
 
 ---
 
@@ -217,11 +219,11 @@ Phase gates require baseline comparisons, conservative cost simulation, contract
 ## DEC-2026-006 - Hold live and profit-seeking use behind written data-rights clearance
 
 - **Date:** 2026-10-15
-- **Status:** Active
+- **Status:** Superseded
 - **Owner:** Project owner
 - **Scope:** Legal and data governance
 - **Supersedes:** —
-- **Superseded by:** —
+- **Superseded by:** DEC-2026-007
 - **Review trigger:** Written NDAL clarification and counsel/owner approval are recorded.
 
 ### Context
@@ -246,6 +248,86 @@ Treat offline research as bounded by the executed Annexure-II purpose and hold a
 ### Validation
 
 Clear the hold only with a dated evidence link/record, permitted-use scope, conditions, approver, and review trigger.
+
+---
+
+<a id="dec-2026-007"></a>
+
+## DEC-2026-007 - Treat legal compliance as an external operational dependency
+
+- **Date:** 2026-10-15
+- **Status:** Active
+- **Owner:** Project owner
+- **Scope:** Process and repository boundary
+- **Supersedes:** DEC-2026-006
+- **Superseded by:** —
+- **Review trigger:** Work moves from controlled offline engineering to live-data operation, capital deployment, redistribution, or external product release.
+
+### Context
+
+The repository needs to progress from planning into deterministic parser and reconstruction engineering. Legal interpretation and formal compliance remain necessary for operational use, but the project owner has placed that work outside repository scope and does not want it to block local offline engineering in the owner-controlled environment.
+
+### Decision
+
+Begin Phase 1 fixture-first engineering while Phase 0 continues as a non-blocking parallel technical track for representative-data qualification, delivery controls, and budget. Keep legal/compliance visible as an external “needs to be done” dependency, without making it a repository deliverable or claiming it is cleared. Repository engineering, tests, synthetic fixtures, and public-sample diagnostics may proceed. Operational live-data use, capital deployment, redistribution, and external-product activation remain separate owner-controlled decisions that require the appropriate external review.
+
+### Alternatives considered
+
+- **Keep Phase 0 blocked until legal clearance:** rejected by the project owner because it prevents controlled offline engineering.
+- **Mark legal compliance complete:** rejected because no evidence establishes clearance and the repository should not make that claim.
+- **Remove every legal reference:** rejected because a visible external dependency reduces the risk of accidental operational activation.
+
+### Consequences
+
+- Phase 1 can start using synthetic fixtures and the qualified public sample.
+- Legal work does not appear in repository acceptance criteria or engineering blockers.
+- The repository must not present itself as providing legal advice or certifying permitted use.
+- Phase 0 remains open for non-legal technical work: representative current data, stream/schema qualification, delivery controls, and budget.
+- Representative current paired data remains required to finish technical qualification and pass Phase 1, even though it is not required to start implementation.
+
+### Validation
+
+The phase table, Phase 0 exit criteria, Phase 1 prerequisites, README, compact log, and immediate actions consistently authorize offline engineering, retain the non-legal technical work, and show legal compliance only as an external operational marker.
+
+---
+
+<a id="dec-2026-008"></a>
+
+## DEC-2026-008 - Keep deterministic market-data replay in Rust and research in Python
+
+- **Date:** 2026-10-15
+- **Status:** Active
+- **Owner:** Project owner
+- **Scope:** Architecture
+- **Supersedes:** —
+- **Superseded by:** —
+- **Review trigger:** Profiling or deployment evidence shows the file/process boundary cannot meet a declared correctness, throughput, latency, or operability requirement.
+
+### Context
+
+Raw fixed-width exchange parsing, exact time conversion, lifecycle mutation, and book reconstruction require strict byte accounting and deterministic performance. Research and modeling require rapid iteration and the mature Python data/ML ecosystem. Duplicating authoritative logic across both languages would create silent divergence.
+
+### Decision
+
+Rust owns raw input integrity, schema-era dispatch, parsing, jiffy conversion, canonical events, lifecycle/book replay, reconciliation, quarantine, deterministic hashes, and canonical Arrow/Parquet output. Python consumes only the versioned canonical boundary for diagnostics, features, labels, datasets, baselines, models, and evaluation. The first integration is a Rust CLI plus Parquet/Arrow, JSON manifests, schemas, and hashes; PyO3/FFI is deferred until measured need.
+
+### Alternatives considered
+
+- **Implement Phase 1 in Python:** rejected because it violates the established deterministic data-plane boundary.
+- **Expose Rust immediately through PyO3:** rejected because it adds build, ABI, packaging, and failure-surface complexity before a measured need.
+- **Maintain parsers/books in both languages:** rejected because two authoritative implementations would drift and undermine replay evidence.
+- **Write research/modeling in Rust:** rejected because it slows iteration without strengthening the authoritative data contract.
+
+### Consequences
+
+- Raw NSE Order/Trade files never enter the Python research layer.
+- The canonical schema, integer units, provenance, enum codes, and hashes become the cross-language contract.
+- Rust golden/property/fuzz/replay tests establish source-to-canonical correctness; Python conformance tests verify manifests and canonical consumption.
+- Any future Rust simulator core must reuse the canonical contracts and may not move research/model ownership out of Python.
+
+### Validation
+
+Phase 1 expected modules use Rust; Python begins under `python/jft/`; the governing plan includes schema/version checks and forbids a duplicate Python parser/book.
 
 ---
 

@@ -1,6 +1,6 @@
 # JFT
 
-JFT is an evidence-gated research program for an NSE Cash Market short-horizon quantitative trading system. The repository is in Phase 0: data rights, evidence, and data qualification. No trading or application implementation has started.
+JFT is an evidence-gated research program for an NSE Cash Market short-horizon quantitative trading system. Phase 1 fixture-first engineering is active while the remaining non-legal Phase 0 data qualification continues in parallel. Legal/compliance is an external operational dependency, not a repository engineering gate.
 
 ## Start here
 
@@ -28,4 +28,6 @@ JFT is an evidence-gated research program for an NSE Cash Market short-horizon q
 
 ## Current state
 
-Phase 0 is in progress. The 17-file supplied-source inventory, rights matrix, legacy CM historical/EOD sample qualification, and official legacy CM Order/Trade sample qualification are complete. The next gate is documented permission for the intended NSE historical-data use plus representative current CM Trim data and trigger files. Phase 1 parser/replay work must not begin until that gate passes, and feature/model work must not begin until deterministic reconstruction passes.
+Phase 1 fixture-first engineering is authorized. Rust owns source integrity, raw NSE parsing, exact jiffy conversion, lifecycle reduction, book replay, reconciliation, quarantine, and canonical Arrow/Parquet output. Python starts at that canonical boundary for diagnostics, features, labels, datasets, and modeling; it must not duplicate the raw parser or authoritative book.
+
+Phase 0 remains open only for technical work that cannot be completed from the supplied samples: representative paired current CM Trim Orders/Trades and triggers, actual stream/schema inventory, delivery controls, and budget approval. These items do not block initial Phase 1 fixtures and interfaces, but representative current data is required to accept Phase 1. Legal/compliance remains visibly marked as something the owner needs to complete before operational activation, outside repository scope.

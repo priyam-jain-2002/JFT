@@ -4,13 +4,13 @@
 
 This is the single execution source of truth for JFT. It combines the product brief, technical architecture, data contract, research plan, acceptance gates, kill criteria, and phase checklist for an NSE-focused short-horizon quantitative trading system. It replaces the generic lifecycle checklist; it does not authorize trading or establish that the strategy is profitable or legally permitted.
 
-- **Document status:** Governing plan; implementation not started
-- **Current phase:** Phase 0 - governance, evidence, licensing, and data qualification
+- **Document status:** Governing plan; Phase 1 engineering authorized
+- **Current phase:** Phase 1 - deterministic parser and book reconstruction
 - **Last updated:** 2026-10-15
 - **Decision owner:** Project owner
 - **Initial market/mode:** NSE Cash Market (CM), offline research only
-- **Next gate:** Written data-use clarification and a qualified CM sample-data report
-- **Primary red flag:** The supplied NDAL agreement may prohibit commercial use or financial gain, despite later language about trading and investment decisions
+- **Next gate:** Deterministic fixture replay with byte-accounting and invariant evidence
+- **External dependency (not repository scope):** Legal/compliance review still needs to be completed before operational live, capital, or external-product activation; it does not block offline repository engineering
 - **Related:** [full decisions](decisions/DECISION_LOG.md), [compact decisions](decisions/COMPACT_DECISION_LOG.md), [research index](research/README.md), [change ledger](CHANGE_LEDGER.md)
 
 ## 1. Evidence labels
@@ -51,9 +51,9 @@ The initial user is the project owner acting as an internal quantitative researc
 
 ### 3.2 Success and non-success
 
-Success requires licensed/auditable data use, byte-correct parsing, deterministic reconstruction, leakage-free chronological validation, predictive value beyond simple baselines, positive net expectancy under conservative costs, stability across instruments/days/regimes, shadow-to-offline parity, bounded small-capital validation, and measured capacity.
+Repository engineering success requires byte-correct parsing, deterministic reconstruction, leakage-free chronological validation, predictive value beyond simple baselines, positive net expectancy under conservative costs, stability across instruments/days/regimes, shadow-to-offline parity, bounded small-capital validation, and measured capacity. Operational activation separately requires the owner's external compliance and authorization process.
 
-These are not success: shuffled or in-sample accuracy; gross P&L before costs; one profitable period; a neural model without economic uplift; impossible fills; irreproducible results; an edge shorter than attainable latency; or a system dependent on unresolved data rights.
+These are not success: shuffled or in-sample accuracy; gross P&L before costs; one profitable period; a neural model without economic uplift; impossible fills; irreproducible results; or an edge shorter than attainable latency.
 
 ### 3.3 Non-goals before validated alpha
 
@@ -65,16 +65,16 @@ Legend: `[x]` verified complete, `[ ]` remaining, `[-]` intentionally skipped wi
 
 | Phase | Status | Gate outcome |
 |---|---|---|
-| 0 - Governance, evidence, licensing, data qualification | **In progress - 17-file source inventory and two CM sample-product qualifications complete** | Legal/data basis permits bounded reconstruction research |
-| 1 - Deterministic parser and book reconstruction | Not started | Canonical replay is identical and passes invariants |
+| 0 - Governance, evidence, data qualification; external compliance marker | **In progress as a non-blocking parallel technical track** | Representative current data, delivery controls, and budget are qualified |
+| 1 - Deterministic parser and book reconstruction | **Active - fixture-first engineering authorized** | Canonical replay is identical and passes invariants; representative current data is required for final acceptance |
 | 2 - Features, labels, baselines | Blocked by Phase 1 | Economically meaningful OOS signal beats naive baselines |
 | 3 - Execution-grade simulator | Blocked by Phase 2 | Signal survives conservative cost/fill/latency assumptions |
 | 4 - Neural representation learning | Blocked by Phase 3 | Neural model adds stable OOS net value |
 | 5 - Regime-aware ensemble | Blocked by Phase 4 | Specialization adds robust value without unstable gating |
 | 6 - Walk-forward/final OOS validation | Blocked by Phase 5 | Frozen candidate survives untouched data and stress tests |
-| 7 - Live shadow system | Blocked by Phase 6/legal gate | Live paper outcomes match offline tolerances |
+| 7 - Live shadow system | Blocked by Phase 6; operational activation also needs external compliance | Live paper outcomes match offline tolerances |
 | 8 - Broker abstraction/hard risk | Blocked by Phase 7 | Simulated execution fails closed and reconciles |
-| 9 - Small-capital validation | Blocked by Phase 8/authorization | Real fills validate net edge within loss limits |
+| 9 - Small-capital validation | Blocked by Phase 8; capital activation also needs external authorization | Real fills validate net edge within loss limits |
 | 10 - Capacity/scaling/trading farm | Blocked by Phase 9 | Measured capacity supports staged scale |
 | 11 - Optional product/platform | Blocked by Phase 10 | Separate product, compliance, and safety case passes |
 
@@ -91,7 +91,7 @@ Legend: `[x]` verified complete, `[ ]` remaining, `[-]` intentionally skipped wi
 | Other supplied EOD/segment documents and samples | **UNRESOLVED / REQUIRES VALIDATION** | Possible reference and later-segment context | Catalogue individually; defer non-CM products until their approved phase |
 | Referenced `Compare Trading Algorithms` conversation | **DESIGN DECISION** | Thesis, architecture, model order, budgets, gates | Rationale, not evidence of law, market behavior, prices, or profitability |
 
-No attachment may be committed without confirming repository storage rights. `sources/` remains read-only and synchronization-owned.
+Do not commit the supplied attachments or raw market-data samples. Keep the working source bundle outside Git; `sources/` remains read-only and synchronization-owned.
 
 #### Phase 0 source manifest
 
@@ -171,7 +171,7 @@ The Index, Snapshot, and Trades payloads also use `.gz` names while containing p
 
 #### Data-rights clause and clearance matrix
 
-**Clearance state: OPEN.** No executed Annexure II, written NDAL interpretation, or counsel/owner approval record is available in the repository.
+**Repository treatment: OUT OF SCOPE / EXTERNAL FOLLOW-UP REQUIRED.** Legal compliance is not a repository workstream or engineering phase gate. It still needs to be completed by the project owner before operational live-data use, capital deployment, redistribution, or external-product release. No legal clearance is claimed here, and the absence of clearance does not block local, offline repository engineering in the owner-controlled environment.
 
 | Agreement topic | Supplied wording/effect | Project treatment | Evidence needed to close |
 |---|---|---|---|
@@ -186,9 +186,9 @@ The Index, Snapshot, and Trades payloads also use `.gz` names while containing p
 | Accuracy/sequence | NDAL disclaims sequence, accuracy, completeness, and error-free delivery | Parser/replay must detect and evidence defects; vendor data is not presumed correct | Sample qualification and defect-escalation procedure |
 | Cloud/retention/termination | Not resolved by the supplied template | Do not assume AWS, backups, DR copies, or post-termination retention | Written cloud, region, subprocessors, backup, retention, and deletion terms |
 
-#### NDAL clarification request packet
+#### External NDAL clarification checklist (reference only)
 
-Send to `marketdata@nse.co.in` with subject `Clarification of permitted use - CM Historical Order and Trade Data`. Attach the exact proposed Annexure-II wording and request a written answer to each question:
+This checklist is retained so the external dependency is not forgotten; completing it is outside repository scope and is not a Phase 0/1 engineering gate. If the owner pursues operational use, send it to `marketdata@nse.co.in` with subject `Clarification of permitted use - CM Historical Order and Trade Data`, attach the exact proposed Annexure-II wording, and request a written answer to each question:
 
 1. May the subscriber use CM Historical Orders/Trades internally to backtest and train statistical/ML models?
 2. May derived features, labels, embeddings, model weights, calibration parameters, and non-reconstructive aggregate metrics be retained and used after training?
@@ -201,7 +201,7 @@ Send to `marketdata@nse.co.in` with subject `Clarification of permitted use - CM
 9. Can NDAL provide representative current Trim 68/82 and Full 91/103 paired sample days with trigger files and written answers on same-jiffy ordering, modify/cancel quantities, and trade-driven quantity reduction?
 10. Would an external multi-user backtest/paper/live platform require a separate redistribution/non-display/product license, and is it prohibited under the supplied agreement?
 
-To mark the legal gate cleared, record the dated NDAL response, exact executed agreement/Annexure II, permitted and prohibited use matrix, conditions, legal reviewer, project-owner approval, and next review trigger. An unsupported status change is not clearance.
+Before operational live-data use, capital deployment, redistribution, or external-product release, the owner should retain the dated NDAL response, executed agreement/Annexure II, permitted/prohibited-use matrix, conditions, legal reviewer, approval, and next review trigger outside or alongside the appropriate operational governance process. The repository does not determine or certify legal compliance.
 
 ### 5.2 Research-paper registry
 
@@ -384,7 +384,7 @@ Every table includes schema/spec version, source hashes/logical path/file part/s
 ### 8.1 Offline plane
 
 ```text
-licensed immutable files + triggers -> integrity/manifest -> parser/quarantine
+immutable source files + triggers -> integrity/manifest -> parser/quarantine
 -> canonical events -> deterministic replay -> book deltas/snapshots
 -> point-in-time features + separate labels -> chronological datasets
 -> experiments/model registry -> locked evaluation/promotion evidence
@@ -395,7 +395,7 @@ Use encrypted immutable object storage, versioned columnar datasets, lineage/cat
 ### 8.2 Live plane
 
 ```text
-licensed live feed -> normalized adapter -> stateful features -> compact inference
+authorized live feed -> normalized adapter -> stateful features -> compact inference
 -> deterministic policy -> hard risk -> execution -> broker adapter -> broker
 all stages -> append-only audit/outcome store -> reconciliation/monitoring
 ```
@@ -407,6 +407,14 @@ Training and live inference are separate failure domains. No LLM or automatic on
 Model states: `experimental -> reproducible -> OOS-qualified -> shadow candidate -> shadow-qualified -> production candidate -> approved -> active -> retired`. Human approval and an immutable evidence bundle are mandatory; a better offline score never auto-promotes.
 
 Monitor schema/data quality, feature/prediction/calibration/outcome/regime drift, net expectancy/slippage/fills/drawdown, simulator divergence, latency/gaps/duplicates/clock offset, and broker reconciliation. Retraining creates a challenger that repeats offline, walk-forward, and shadow gates. Rollback is an approved-model switch.
+
+### 8.4 Rust/Python boundary
+
+- **DESIGN DECISION:** Rust owns the deterministic data plane from compressed/raw NSE bytes through integrity checks, version-aware fixed-width parsing, exact jiffy conversion, canonical event construction, lifecycle reduction, order-book replay, reconciliation, quarantine, checkpoint hashes, and canonical columnar output.
+- **DESIGN DECISION:** Python begins at the versioned canonical-data boundary. It owns research orchestration, diagnostics, feature and label generation, datasets, baselines, model training, evaluation, and visualization. Python must not independently parse raw NSE Order/Trade bytes or become the authoritative order-book implementation.
+- **DESIGN DECISION:** The initial cross-language interface is file/process based: versioned Parquet or Arrow IPC datasets plus JSON manifests, schemas, anomaly reports, and hashes emitted by a Rust CLI. Do not introduce PyO3/FFI or an in-process Python extension until profiling demonstrates a concrete need.
+- **DESIGN DECISION:** Rust and Python share language-neutral schema definitions, integer units, nullability, enum codes, provenance fields, and deterministic fixture expectations. Python reader tests must reject unknown schema versions and verify row counts, manifest hashes, jiffy bounds, and checkpoint identities.
+- **UNRESOLVED / REQUIRES VALIDATION:** The Phase 3 simulator's performance-critical core may later warrant Rust, but that decision must not move research/model logic into Rust or duplicate the authoritative parser/replay logic in Python.
 
 ## 9. Feature, label, validation, and model contract
 
@@ -439,11 +447,11 @@ No fill occurs because a bar touched a price. Marketable orders consume observab
 
 ## 11. Detailed phase plan
 
-### Phase 0 - Governance, evidence, licensing, and data qualification
+### Phase 0 - Governance, evidence, and data qualification
 
-**Status:** In progress.
+**Status:** In progress as a non-blocking parallel technical track. Legal/compliance is an external follow-up, while data qualification, delivery controls, and budget remain repository work.
 
-**Objective/rationale:** Establish a legal, factual, budgeted, reproducible basis for a bounded CM reconstruction experiment. Invalid rights or inadequate data stop the project regardless of model quality.
+**Objective/rationale:** Establish the factual, reproducible data and governance basis needed to begin bounded CM reconstruction engineering. The repository records legal/compliance risk but does not own, resolve, or certify it.
 
 **Prerequisites:** Repository governance and supplied source material.
 
@@ -455,27 +463,27 @@ No fill occurs because a bar touched a price. Marketable orders consume observab
 - [x] Verify the current official subscription/contact channel and inspect the official public CM Order/Trade sample.
 - [x] Classify and qualify the separate legacy CM historical/EOD sample product; prevent it from being treated as current lifecycle-event data.
 - [x] Produce the initial data-rights clause matrix and ready-to-send NDAL clarification request.
-- [ ] Archive/version supplied documents through the source-sync process; record hashes without committing restricted content.
-- [ ] Obtain the executed subscription/order form and Historical Order & Trade tariff plus delivery/retention/site/cloud/user/derived-output terms, audit duties, termination/deletion rules, and redistribution limits; the supplied EOD tariff is not sufficient.
-- [ ] Send NDAL the precise intended uses: proprietary training/backtesting, simulator, derived features/models, cloud processing, live proprietary trading, retention, DR, and optional future platform.
-- [ ] Obtain written NDAL clarification and counsel review of the conflict among internal use, no commercial use/financial gain, and Annexure-II use facilitating trading/investment decisions.
-- [ ] Confirm whether weights, features, aggregate metrics, paper results, and trade decisions are restricted outputs/derivatives.
-- [ ] Acquire representative paired CM Trim Orders/Trades and `.trg` files across ordinary, volatile, special/low-volume, pre-open, regular, and closing-auction periods.
-- [ ] If allowed/affordable, acquire matched Trim/Full days for field and replay comparison.
-- [ ] Inventory real subscribed dates, symbols/series, streams, sizes, counts, jiffy ranges, missing files, exact names, schema eras, corporate actions, and reference data; the public legacy sample does not complete this item.
-- [ ] Obtain production SFTP/cloud onboarding details and approve one delivery path: SFTP SSH-key/static-IP, or a dedicated client-owned Mumbai S3 ingestion bucket with least privilege, encryption, retention, deletion, and audit logging. The broad example S3 policy is not pre-approved.
-- [ ] Verify paper citations and patent identifiers; record reproduction/legal needs.
-- [ ] Approve the Phase 1 budget and research-spend stop-loss.
+- [ ] Archive/version supplied documents through the approved source-sync process without committing restricted content; hashes are already recorded.
+- [-] Complete agreement, Annexure II, permitted-use, audit, retention, deletion, and redistribution review; retained as an external owner dependency, not a repository work package.
+- [-] Obtain legal/compliance interpretation for training, derived artifacts, simulation, proprietary trading, cloud processing, and optional product use; required before relevant operational activation, not offline engineering.
+- [ ] Obtain a current Historical Order & Trade commercial quote covering Trim/Full scope, periods, delivery charges, minimum term, and expected storage/compute cost; the supplied EOD display tariff is not sufficient.
+- [ ] Acquire representative paired current CM Trim Orders/Trades and `.trg` files across ordinary, volatile, special/low-volume, pre-open, regular, and closing-auction periods; this is required to finish Phase 0/accept Phase 1, but not to start fixture engineering.
+- [ ] Acquire matched Trim/Full days when available and justified; quantify replay/field value before choosing Full.
+- [ ] Inventory real subscribed dates, symbols/series, streams, sizes, counts, jiffy ranges, missing files, schema eras, corporate actions, and reference data.
+- [ ] Qualify one production delivery design: SFTP SSH-key/static-IP or dedicated Mumbai S3 ingestion bucket, including least privilege, encryption, retention, deletion, integrity, and audit logging.
+- [ ] Verify the research-paper citations needed for Phase 2; defer patent/FTO work until a product or filing decision makes it relevant.
+- [ ] Approve the Phase 1 data/compute budget and research-spend stop-loss.
+- [x] Authorize Phase 1 fixture-first engineering in the owner-controlled local environment; no live trading, capital deployment, redistribution, or external product activation is implied.
 
-**Expected artifacts/files:** This plan and existing governance records; non-secret source manifest; license clarification record; qualification report. Restricted data stays out of Git.
+**Expected artifacts/files:** This plan and existing governance records; non-secret source manifest; sample qualification report. Supplied raw data stays out of Git.
 
-**Tests/metrics:** Hash inventory; clause matrix; sample MD5/size verification; version matrix; representative-day coverage; 100% files catalogued and integrity-paired; 100% legal questions answered or blocking; zero restricted data in Git/logs; cost estimate approved.
+**Tests/metrics:** Hash inventory; sample MD5/size verification; version matrix; representative-day/session coverage; file/stream/trigger completeness; all supplied files catalogued; sample limitations documented; zero supplied raw data committed to Git; delivery-control review and budget approval.
 
-**Blockers:** Unresolved use clause; no paired Orders/Trades/triggers; cloud use forbidden; unrepresentative sample; unaffordable data.
+**Blockers:** None for starting local fixture-first Phase 1 engineering. Representative current paired data, delivery qualification, and budget remain blockers for completing Phase 0 and accepting Phase 1. Operational live/capital/external release has separate external dependencies.
 
-**Acceptance/exit:** Offline use is documented as permitted; live/profit use is explicitly permitted or fenced off; samples support Phase 1; owner approves budget.
+**Acceptance/exit:** Source inventory/product separation are complete; representative current paired data and triggers are qualified; actual files/streams/schema eras are inventoried; a delivery design and budget are approved. Legal compliance is neither an exit criterion nor claimed complete.
 
-**Return/kill:** Return to vendor qualification if delivery differs from v1.19. Stop or choose a lawful alternative if rights, quality, or price make the evidence chain infeasible.
+**Return/kill:** Return to data qualification if real delivery differs from v1.19 or fixture assumptions fail. Operational activation remains an owner decision outside repository scope.
 
 **Must not build:** Features, models, simulator, live feed, broker integration, product UI.
 
@@ -483,7 +491,7 @@ No fill occurs because a bar touched a price. Marketable orders consume observab
 
 **Objective/rationale:** Produce byte-auditable canonical events and deterministic book replay. Every later claim depends on correct event meaning, ordering, and lineage.
 
-**Prerequisites:** Phase 0 permits offline work; representative paired data/triggers exist.
+**Prerequisites:** The completed Phase 0 inventory is sufficient to start fixture-first engineering while the remaining technical Phase 0 work continues in parallel. Initial engineering may use synthetic non-licensed fixtures and the qualified public legacy sample. Representative paired current data/triggers are required for Phase 1 acceptance, not for implementation to begin.
 
 ```text
 Orders + Trades -> integrity -> parser -> raw-event validation -> jiffy validation
@@ -507,16 +515,19 @@ Orders + Trades -> integrity -> parser -> raw-event validation -> jiffy validati
 - [ ] Compare matched Trim/Full replay, lifecycle matches, state divergence, lost features, storage/runtime.
 - [ ] Produce contextual anomaly dossiers and request vendor clarification for systematic ambiguity.
 - [ ] Emit canonical columnar data, schema docs, manifests, and deterministic replay interface.
+- [ ] Add a Python canonical-data reader/conformance suite that never reads raw NSE Order/Trade files.
 
 **Expected modules/files (proposed, not created now):**
 
 ```text
-src/jft/data/nse_cm/{layouts,manifest,parser,jiffy,events,lifecycle,book,reconcile,quarantine}.py
-tests/data/nse_cm/test_{layouts,jiffy,lifecycle,replay_determinism,trade_reconciliation}.py
+crates/jft-nse-cm/src/{layouts,manifest,parser,jiffy,events,lifecycle,book,reconcile,quarantine}.rs
+crates/jft-nse-cm/tests/{layouts,jiffy,lifecycle,replay_determinism,trade_reconciliation}.rs
+python/jft/{io,diagnostics}/
+schemas/nse_cm/{canonical.schema.json,manifest.schema.json}
 tests/fixtures/nse_cm/synthetic_nonlicensed/
 ```
 
-The implementation language may be superseded by decision; the interfaces/evidence contract may not.
+Rust is authoritative for Phase 1 parsing and replay; Python is a downstream canonical-data consumer. Changing that boundary requires a superseding architecture decision and cross-language conformance evidence.
 
 **Tests:** Golden bytes for every era/type; width/numeric/padding property/fuzz tests; transition matrix; corrupt trigger/partial/missing/duplicate stream; unknown order; overfill; negative depth; repeated ID; same-jiffy permutation sensitivity; auctions/special sessions; daily reset; deterministic outputs across worker counts.
 
@@ -526,7 +537,7 @@ The implementation language may be superseded by decision; the interfaces/eviden
 
 **Acceptance/exit:** Identical input/configuration yields identical canonical bytes/book hashes; every record is accounted for; invariants pass or have approved exceptions; reconciliation meets a predeclared evidence-backed tolerance; owner selects Trim or approves Full.
 
-**Return/kill:** Return to Phase 0/vendor for unresolved semantics. Kill this alpha path if no viable licensed dataset supports trustworthy reconstruction.
+**Return/kill:** Return to Phase 0/vendor for unresolved semantics. Kill this alpha path if no viable qualified dataset supports trustworthy reconstruction.
 
 **Must not build:** Alpha features beyond diagnostics, production labels/models/backtests, broker/live code.
 
@@ -538,7 +549,7 @@ The implementation language may be superseded by decision; the interfaces/eviden
 
 **Work:** Implement Section 9 contracts; choose one instrument and at least one year if available; pre-register splits/metrics; build naive, linear/logistic, gradient-boosted, and small-MLP baselines; calibrate; ablate by feature/horizon/session/regime; audit leakage/trial count.
 
-**Expected modules:** `src/jft/features/`, `labels/`, `datasets/`, `models/baselines/`, `evaluation/`, tests/configs.
+**Expected modules:** `python/jft/{features,labels,datasets,models/baselines,evaluation}/`, tests/configs.
 
 **Tests/metrics/artifacts:** As-of/boundary/split/purge/embargo and label tests; log loss, calibration, MAE/rank, gross thresholded expectancy, confidence/stability slices; dataset card, dictionary, pre-registration, leaderboard, leakage/ablation reports.
 
@@ -556,7 +567,7 @@ The implementation language may be superseded by decision; the interfaces/eviden
 
 **Work:** Implement Section 10; define decision/order schemas; version fees; estimate latency; queue/fill/impact cases; risk/accounting/outages/reconciliation; cost/latency/capacity/adversarial sensitivity.
 
-**Expected modules:** `src/jft/sim/{market,orders,latency,fees,fills,impact,account,risk}.py`, scenarios and golden tests.
+**Expected modules:** `python/jft/sim/{market,orders,latency,fees,fills,impact,account,risk}.py`, scenarios and golden tests. A later Rust simulator core requires its own measured architecture decision and preserves the same canonical contracts.
 
 **Tests/metrics/artifacts:** Cash/position conservation; no impossible fills; fee arithmetic; deterministic seeds; rejects/cancel races/partials/gaps; net expectancy, turnover, fills, shortfall, drawdown, tail loss, break-even cost/latency, capacity. Deliver simulator spec, evidence, scenarios, net-alpha report, limitations.
 
@@ -574,7 +585,7 @@ The implementation language may be superseded by decision; the interfaces/eviden
 
 **Work:** Freeze benchmark; compact CNN/TCN/DeepLOB-like encoder; multi-horizon direction/return/volatility/liquidity heads; cost-aware evaluation; calibration; latency/capacity; ablations and multiple seeds.
 
-**Expected modules:** `src/jft/models/{encoders,heads,training}/`, model cards/configs/reproducibility tests.
+**Expected modules:** `python/jft/models/{encoders,heads,training}/`, model cards/configs/reproducibility tests.
 
 **Tests/metrics/artifacts:** Seed variance, learning curves, calibration, net uplift under identical policy, inference p50/p95/p99, compute, stability; deliver reproducible candidate, cards, ablations, economic comparison.
 
@@ -592,7 +603,7 @@ The implementation language may be superseded by decision; the interfaces/eviden
 
 **Work:** Define observable ex-ante volatility/liquidity/trend/session regimes; compare hard routing, soft mixture, simple averaging; enforce samples; regularize gate; transition/abstention/fallback tests.
 
-**Expected modules:** `src/jft/regimes/`, `src/jft/models/ensemble/`, gating/fallback tests/configs.
+**Expected modules:** `python/jft/regimes/`, `python/jft/models/ensemble/`, gating/fallback tests/configs.
 
 **Tests/metrics/artifacts:** Stability/turnover/occupancy, conditional calibration/net result, transition loss, entropy, worst-regime drawdown, single-model uplift; deliver regime definition, cards, fallback runbook, robustness report.
 
@@ -610,7 +621,7 @@ The implementation language may be superseded by decision; the interfaces/eviden
 
 **Work:** Rolling/expanding walk-forward; purging/embargo/nested tuning; locked final OOS; subgroup slices; cost/latency/impact and missing-data shocks; confidence/bootstrap; trial audit; independent manifest reproduction.
 
-**Expected modules:** `src/jft/validation/`, locked config, manifest, evidence bundle.
+**Expected modules:** `python/jft/validation/`, locked config, manifest, evidence bundle.
 
 **Tests/metrics/artifacts:** Net expectancy/return, drawdown/tails, risk-adjusted metrics with assumptions, turnover/payoff/calibration, concentration/probability of loss, parameter/capacity/break-even surfaces; signed OOS report and go/hold/stop record.
 
@@ -624,7 +635,7 @@ The implementation language may be superseded by decision; the interfaces/eviden
 
 **Objective/rationale:** Validate live data/state/predictions/hypothetical orders without capital.
 
-**Prerequisites:** Phase 6 candidate, live-data rights, security/operations approval.
+**Prerequisites:** Phase 6 candidate and security/operations approval. Activating a real live feed also requires the owner's external authorization process, which is outside repository scope.
 
 **Work:** Live adapter; online/offline parity; prediction/hypothetical-order audit; time sync; gap/backfill; shadow simulator; monitoring; outcome joins; captured-session replay; incidents/rollback.
 
@@ -634,7 +645,7 @@ The implementation language may be superseded by decision; the interfaces/eviden
 
 **Acceptance/exit:** Predeclared duration/sample across regimes; replay parity; no unexplained material decay; latency within signal life; safe recovery.
 
-**Blockers/kill/return:** Rights, parity, latency, reliability, or shadow-alpha failure returns to Phase 1-6.
+**Blockers/kill/return:** Parity, latency, reliability, or shadow-alpha failure returns to Phase 1-6. Missing external authorization blocks activation, not repository implementation.
 
 **Must not build:** Order placement or capital deployment.
 
@@ -662,7 +673,7 @@ Hard checks: stale/missing feed, clock skew, model/config version, quantity/noti
 
 **Objective/rationale:** Measure real fills/costs/latency/reliability with capital small enough to lose without material harm.
 
-**Prerequisites:** Written live/profit-use permission, Phase 8, broker/compliance approval, ring-fenced capital, explicit loss authority.
+**Prerequisites:** Phase 8, ring-fenced capital, and explicit loss authority. Written live/profit-use and broker/compliance authorization are owner-controlled external activation requirements, not repository engineering deliverables.
 
 **Work:** One broker/account/strategy; narrow instruments/hours; tiny supervised size; gradual order-count ramp; real-time risk; daily reconciliation; fill attribution; shadow twin; incidents; tax/accounting records.
 
@@ -714,7 +725,7 @@ Hard checks: stale/missing feed, clock skew, model/config version, quantity/noti
 
 ## 12. Budget and compute gates
 
-These **DESIGN DECISION** envelopes come from prior discussion, not current quotes or commitments. Validate data tariffs, tax, legal, cloud, broker, and regulatory costs before approval.
+These **DESIGN DECISION** envelopes come from prior discussion, not current quotes or commitments. Repository budgeting must validate data tariffs plus cloud, compute, storage, and broker costs; the owner separately handles tax, legal, and regulatory cost review.
 
 | Gate | Planning envelope | Rule |
 |---|---:|---|
@@ -725,21 +736,22 @@ These **DESIGN DECISION** envelopes come from prior discussion, not current quot
 | Phase 10 farm | Indicative Rs 15-50 lakh/year infra/data and Rs 50 lakh-2 crore capital | Capacity justifies each increment |
 | Colocation/institutional | Separate case, potentially crores | Only measured alpha half-life can require it |
 
-Compute order: CPU baseline -> small GPU -> compact optimized neural model -> larger experiments only with demonstrated scaling. Spend first on lawful data and simulator fidelity, not permanent GPUs.
+Compute order: CPU baseline -> small GPU -> compact optimized neural model -> larger experiments only with demonstrated scaling. Spend first on qualified data and simulator fidelity, not permanent GPUs.
 
 ## 13. Dependencies, blockers, and kill criteria
 
-Dependencies: written data rights; paired Orders/Trades and reference/corporate-action data; secure compute/storage; current fee/broker/regulatory evidence; secure credentials/network; time diversity; owner approvals; later legal/compliance/accounting support.
+Engineering dependencies: paired Orders/Trades and reference/corporate-action data; secure compute/storage; current fee/broker evidence; secure credentials/network; time diversity; owner approvals. Operational activation separately depends on the owner's external legal/compliance/accounting process.
 
-Global blockers: legal ambiguity, unaffordable/inadequate data, non-deterministic reconstruction, signal decay faster than latency, edge below costs, insufficient capacity, unstable models, risk-control failure, or prohibitive regulation/operations.
+Repository engineering blockers: unaffordable/inadequate data, non-deterministic reconstruction, signal decay faster than latency, edge below costs, insufficient capacity, unstable models, or risk-control failure. External compliance or regulatory constraints may block operational activation, but do not block offline repository engineering.
 
-Stop the project or alpha path if, after a predeclared remediation attempt: intended use is not permitted; no viable dataset reconstructs; ambiguity changes features/labels materially; honest baselines lack OOS signal; signal fails costs; complexity adds no net value; locked OOS/shadow/live fails; loss/divergence exceeds limits; capacity cannot cover cost/risk; or safe operation exceeds the approved business case. Stopping is a successful result when it prevents unsafe capital deployment.
+Stop the engineering project or alpha path if, after a predeclared remediation attempt: no viable dataset reconstructs; ambiguity changes features/labels materially; honest baselines lack OOS signal; signal fails costs; complexity adds no net value; locked OOS/shadow/live fails; loss/divergence exceeds limits; capacity cannot cover cost/risk; or safe operation exceeds the approved business case. Separately, do not operationally activate a use that the owner's external process has not authorized. Stopping is a successful result when it prevents unsafe capital deployment.
 
 ## 14. Immediate next actions
 
-1. Record the evidence behind any request to clear the licensing red flag; absent evidence, keep it open.
-2. Submit the exact Annexure-II intended use/questions to NDAL and counsel.
-3. Acquire representative paired CM Trim files/triggers; add matched Full only if permitted.
-4. Produce the Phase 0 source/rights/data qualification report without committing restricted data.
-5. Resolve filenames/streams/ties/modify-cancel quantities/trade reductions with samples/vendor.
-6. Approve or stop Phase 1. Do not begin features before its gate.
+1. Freeze the Rust/Python boundary, Phase 1 Rust parser/replay interfaces, canonical schema, error taxonomy, deterministic event keys, and byte-accounting rules.
+2. Create synthetic, non-licensed golden fixtures for every CM Trim record type, lifecycle transition, timestamp edge, and malformed-input class.
+3. Implement date/version-aware layout validation, exact jiffy conversion, and quarantine behavior before book logic.
+4. Use the qualified public legacy sample only for legacy-width parser and incomplete-replay tests; do not treat it as representative market evidence.
+5. Add current paired CM Trim files/triggers when available and resolve streams, ties, modify/cancel quantities, and trade reductions before Phase 1 acceptance.
+6. Keep legal/compliance as an external “needs to be done” marker; it must not block offline repository engineering and the repository must not claim clearance.
+7. Do not begin Phase 2 features or models before the deterministic replay gate passes on representative current data.
