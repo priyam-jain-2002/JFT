@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-17 - Exhaustively prove Trim single-byte evidence retention
+
+- **Changed:** Added deterministic mutation sweeps that substitute all 256 byte values at every byte position in the current Trim Order and Trade fixtures.
+- **Why:** Field-specific tests cover intended rules but can miss panics or evidence loss at unexpected byte values. The parser's minimum safety invariant is total behavior over every fixed-width byte string: exact success bytes or exact quarantine bytes.
+- **Validation:** The tests exercise 68 x 256 Order variants and 82 x 256 Trade variants (38,400 total). Every outcome preserves the complete mutated input, and no case panics. All 36 Rust tests pass; formatting, compilation, and strict Clippy pass.
+- **Related:** DEC-2026-004, DEC-2026-008; Phase 1 parser/quarantine invariants.
+- **Follow-up:** Add coverage-guided fuzzing after the dependency/tooling choice is reviewed; keep semantic assertions separate from the totality/evidence-retention invariant.
+
+---
+
 ## 2026-10-17 - Add current Full CM boundary fixtures
 
 - **Changed:** Added synthetic, non-licensed 91-byte Full Order and 103-byte Full Trade fixture records plus tests that frame them and assert every field's exact raw bytes.

@@ -252,6 +252,38 @@ fn literal_b_padding_is_preserved_and_not_guessed_as_blank() {
 }
 
 #[test]
+fn every_single_byte_order_mutation_preserves_the_exact_input() {
+    let base = record_without_lf::<TRIM_ORDER_RECORD_LEN>(ORDER_FIXTURE);
+
+    for position in 0..TRIM_ORDER_RECORD_LEN {
+        for value in u8::MIN..=u8::MAX {
+            let mut raw = base;
+            raw[position] = value;
+            match parse_trim_order(&raw) {
+                Ok(parsed) => assert_eq!(parsed.raw, raw),
+                Err(quarantined) => assert_eq!(quarantined.raw, raw),
+            }
+        }
+    }
+}
+
+#[test]
+fn every_single_byte_trade_mutation_preserves_the_exact_input() {
+    let base = record_without_lf::<TRIM_TRADE_RECORD_LEN>(TRADE_FIXTURE);
+
+    for position in 0..TRIM_TRADE_RECORD_LEN {
+        for value in u8::MIN..=u8::MAX {
+            let mut raw = base;
+            raw[position] = value;
+            match parse_trim_trade(&raw) {
+                Ok(parsed) => assert_eq!(parsed.raw, raw),
+                Err(quarantined) => assert_eq!(quarantined.raw, raw),
+            }
+        }
+    }
+}
+
+#[test]
 fn rejects_a_record_that_still_contains_the_lf_delimiter() {
     let error = parse_trim_order(ORDER_FIXTURE).expect_err("parser accepts payload only");
 
