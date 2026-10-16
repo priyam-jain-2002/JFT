@@ -514,6 +514,7 @@ Orders + Trades -> integrity -> parser -> raw-event validation -> jiffy validati
 - [x] Lazily yield one ordered, byte-addressable outcome per exactly framed record from caller-provided bytes; continue after field-level quarantine, stop after framing loss, and prove repeat runs return identical outcomes without retaining a whole-file result vector in the parser. Disk-backed streaming/mapping remains unselected pending real file-size and throughput evidence.
 - [x] Encode and exactly test the current v1.19 Full 91-byte Order and 103-byte Trade field maps, including contiguity and the shared Trim/Full Order core prefix; Full parsing and historical 87/100/101 variants remain open.
 - [x] Add non-licensed synthetic current Full Order/Trade fixtures and assert the exact bytes at every documented field boundary without claiming Full semantic validation.
+- [x] Inventory all current synthetic fixture sizes and complete-file SHA-256 digests (including LF), with an explicit non-NSE/non-representative provenance warning.
 - [ ] Freeze compressed inputs; verify trigger MD5/size, compute SHA-256, write manifest.
 - [ ] Discover all parts/streams rather than hard-code a count; reject missing/duplicate parts.
 - [ ] Implement date/version-aware schemas for Trim 68/82 and required Full variants.

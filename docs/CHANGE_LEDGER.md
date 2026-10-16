@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-17 - Freeze the synthetic fixture identities
+
+- **Changed:** Expanded the existing synthetic-fixture README with provenance, exact payload/LF sizes, SHA-256 digests for all four current Trim/Full golden files, reproduction commands, and an update rule.
+- **Why:** Later integrity and manifest code needs independent immutable expected values. The registry also prevents synthetic test bytes from being mistaken for licensed or representative NSE samples.
+- **Validation:** Recomputed each digest and byte count from the tracked files: Trim Order 69, Trim Trade 83, Full Order 92, and Full Trade 104 bytes including LF. The inventory values match both command outputs exactly. No manifest schema, dependency, parser behavior, or application code changed.
+- **Related:** DEC-2026-004, DEC-2026-008, proposed DEC-2026-009; Phase 1 fixture and future integrity contract.
+- **Follow-up:** After DEC-2026-009 is approved, make the Rust integrity implementation reproduce these hashes as golden tests.
+
+---
+
 ## 2026-10-17 - Prove the Trim width guard across truncation and oversize cases
 
 - **Changed:** Added exhaustive tested-length sweeps around both current Trim payload widths, covering empty, truncated, delimiter-sized, and up-to-32-byte-oversized inputs.
