@@ -506,6 +506,7 @@ Orders + Trades -> integrity -> parser -> raw-event validation -> jiffy validati
 - [x] Create the dependency-free Cargo workspace and tracked Rust/Python/schema/synthetic-fixture boundaries; verify format, compile, tests, and Clippy without freezing record semantics.
 - [x] Define contiguous current CM Trim 68-byte Order and 82-byte Trade layouts; parse one synthetic golden record of each, preserve exact input bytes, and quarantine wrong width, invalid numerics, zero quantity, and unknown activity with field evidence.
 - [x] Exhaustively mutate every numeric byte and test all documented session/side/activity codes, zero price/quantity rules, non-ASCII text, LF rejection, and literal-`b` preservation; all failures retain raw input and field evidence.
+- [x] Frame exact-width LF-delimited records without copying valid payloads; attach zero-based record index and source byte offset; stop without resynchronization guesses and preserve the entire unconsumed tail on partial records or unexpected delimiters.
 - [ ] Freeze compressed inputs; verify trigger MD5/size, compute SHA-256, write manifest.
 - [ ] Discover all parts/streams rather than hard-code a count; reject missing/duplicate parts.
 - [ ] Implement date/version-aware schemas for Trim 68/82 and required Full variants.
@@ -526,8 +527,8 @@ Orders + Trades -> integrity -> parser -> raw-event validation -> jiffy validati
 **Expected modules/files (proposed, not created now):**
 
 ```text
-crates/jft-nse-cm/src/{layouts,manifest,parser,jiffy,events,lifecycle,book,reconcile,quarantine}.rs
-crates/jft-nse-cm/tests/{layouts,jiffy,lifecycle,replay_determinism,trade_reconciliation}.rs
+crates/jft-nse-cm/src/{framing,layouts,manifest,parser,jiffy,events,lifecycle,book,reconcile,quarantine}.rs
+crates/jft-nse-cm/tests/{record_framing,layouts,jiffy,lifecycle,replay_determinism,trade_reconciliation}.rs
 python/jft/{io,diagnostics}/
 schemas/nse_cm/{canonical.schema.json,manifest.schema.json}
 tests/fixtures/nse_cm/synthetic_nonlicensed/

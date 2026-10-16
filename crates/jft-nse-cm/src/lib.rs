@@ -7,6 +7,7 @@
 
 pub mod book;
 pub mod events;
+pub mod framing;
 pub mod jiffy;
 pub mod layouts;
 pub mod lifecycle;

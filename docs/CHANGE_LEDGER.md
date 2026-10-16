@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-17 - Prove exact source-record framing and byte accounting
+
+- **Changed:** Added a zero-copy Rust iterator for fixed-width LF-delimited source records, with zero-based record indices, byte offsets, exact payload slices, explicit framing errors, and lossless preservation of every unconsumed byte after a failure.
+- **Why:** The field parser must never receive delimiters or silently repair framing. Deterministic replay requires source positions and complete byte accounting before manifest hashes or lifecycle state are introduced.
+- **Validation:** Six framing tests prove exact multi-record offsets, full byte accounting, Trade payload separation, empty input behavior, rejection of a missing final LF and CRLF, lossless corrupt-tail capture, and stop-on-first-error behavior. Together with the existing suite, all 25 Rust tests pass; formatting, compilation, and strict Clippy pass.
+- **Related:** DEC-2026-004, DEC-2026-008; Phase 1 byte-accounting contract.
+- **Follow-up:** Connect framed records to explicit source provenance and the versioned manifest contract; select audited hashing/serialization dependencies before implementing trigger MD5, internal SHA-256, and JSON output.
+
+---
+
 ## 2026-10-16 - Expose and contain the NSE jiffy-epoch inconsistency
 
 - **Changed:** Removed the unsupported UTC implication from the Rust jiffy API and governing plan, retained only lossless raw/integer decomposition, added a regression test for the published offset discrepancy, and added a precise vendor clarification question.
