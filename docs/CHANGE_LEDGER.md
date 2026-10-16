@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-17 - Remove unbounded framing-error tail copies
+
+- **Changed:** Replaced the owned `Vec` in `FramingError` with a lifetime-bound slice into the immutable source and propagated that lifetime through the lazy parser iterator.
+- **Why:** Copying the entire unconsumed tail after one malformed delimiter could allocate gigabytes and turn a data-quality error into an out-of-memory failure. Borrowing preserves identical evidence with constant additional memory.
+- **Validation:** Existing framing/source tests still prove lossless stop-on-first-error behavior; added pointer-identity assertions prove missing-LF, CRLF, and post-record partial tails reference the original source allocation. All 38 Rust tests pass; formatting, compilation, and strict Clippy pass.
+- **Related:** DEC-2026-008; Phase 1 framing, reliability, and memory-safety contract.
+- **Follow-up:** Disk-backed ingestion must preserve the same bounded-memory behavior, using source-range provenance or a bounded copied error window rather than an unbounded tail allocation.
+
+---
+
 ## 2026-10-17 - Freeze the synthetic fixture identities
 
 - **Changed:** Expanded the existing synthetic-fixture README with provenance, exact payload/LF sizes, SHA-256 digests for all four current Trim/Full golden files, reproduction commands, and an update rule.

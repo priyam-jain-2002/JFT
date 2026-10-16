@@ -58,6 +58,7 @@ fn preserves_a_trailing_payload_that_has_no_lf() {
     assert_eq!(error.record_index, 0);
     assert_eq!(error.byte_offset, 0);
     assert_eq!(error.unconsumed_raw, source);
+    assert!(std::ptr::eq(error.unconsumed_raw.as_ptr(), source.as_ptr()));
     assert_eq!(
         error.reason,
         FramingErrorReason::TrailingPartialRecord {
@@ -83,6 +84,7 @@ fn rejects_crlf_and_preserves_the_unconsumed_tail() {
     assert_eq!(error.record_index, 0);
     assert_eq!(error.byte_offset, 0);
     assert_eq!(error.unconsumed_raw, source);
+    assert!(std::ptr::eq(error.unconsumed_raw.as_ptr(), source.as_ptr()));
     assert_eq!(
         error.reason,
         FramingErrorReason::UnexpectedDelimiter {
@@ -111,6 +113,10 @@ fn reports_the_first_unaccounted_byte_after_valid_records() {
     assert_eq!(error.record_index, 1);
     assert_eq!(error.byte_offset, ORDER_FIXTURE.len());
     assert_eq!(error.unconsumed_raw, b"partial");
+    assert!(std::ptr::eq(
+        error.unconsumed_raw.as_ptr(),
+        source[ORDER_FIXTURE.len()..].as_ptr()
+    ));
     assert_eq!(
         error.reason,
         FramingErrorReason::TrailingPartialRecord {

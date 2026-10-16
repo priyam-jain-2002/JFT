@@ -8,7 +8,7 @@ pub struct FramedRecord<'a, const N: usize> {
     pub raw: &'a [u8; N],
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FramingErrorReason {
     TrailingPartialRecord {
         expected_payload_bytes: usize,
@@ -22,12 +22,12 @@ pub enum FramingErrorReason {
     },
 }
 
-/// A framing failure with all unconsumed source bytes preserved.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FramingError {
+/// A framing failure with a zero-copy reference to all unconsumed source bytes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FramingError<'a> {
     pub record_index: usize,
     pub byte_offset: usize,
-    pub unconsumed_raw: Vec<u8>,
+    pub unconsumed_raw: &'a [u8],
     pub reason: FramingErrorReason,
 }
 
@@ -55,19 +55,19 @@ impl<'a, const N: usize> FixedWidthLfRecords<'a, N> {
         }
     }
 
-    fn fail(&mut self, reason: FramingErrorReason) -> FramingError {
+    fn fail(&mut self, reason: FramingErrorReason) -> FramingError<'a> {
         self.finished = true;
         FramingError {
             record_index: self.next_record_index,
             byte_offset: self.next_byte_offset,
-            unconsumed_raw: self.source[self.next_byte_offset..].to_vec(),
+            unconsumed_raw: &self.source[self.next_byte_offset..],
             reason,
         }
     }
 }
 
 impl<'a, const N: usize> Iterator for FixedWidthLfRecords<'a, N> {
-    type Item = Result<FramedRecord<'a, N>, FramingError>;
+    type Item = Result<FramedRecord<'a, N>, FramingError<'a>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.finished || self.next_byte_offset == self.source.len() {

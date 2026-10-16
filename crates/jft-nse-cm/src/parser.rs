@@ -31,8 +31,8 @@ pub struct ParsedRecords<'a, T, const N: usize> {
     parse_record: fn(&[u8]) -> Result<ParsedRecord<T, N>, QuarantinedRecord>,
 }
 
-impl<T, const N: usize> Iterator for ParsedRecords<'_, T, N> {
-    type Item = Result<LocatedParse<T, N>, FramingError>;
+impl<'a, T, const N: usize> Iterator for ParsedRecords<'a, T, N> {
+    type Item = Result<LocatedParse<T, N>, FramingError<'a>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.framed.next().map(|framed| {
