@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-17 - Add current Full CM boundary fixtures
+
+- **Changed:** Added synthetic, non-licensed 91-byte Full Order and 103-byte Full Trade fixture records plus tests that frame them and assert every field's exact raw bytes.
+- **Why:** Layout constants should be exercised by independently readable golden bytes before adding Full event types or semantic validation. This catches off-by-one and field-shift errors without prematurely deciding conditional market/stop-loss/quantity rules.
+- **Validation:** Both fixtures are exactly one documented payload plus one LF byte (92/104 bytes). Two integration tests verify framing and every one of the 17 Order and 14 Trade field slices. All 34 Rust tests pass; formatting, compilation, and strict Clippy pass.
+- **Related:** NSE Historical Order & Trade Data v1.19; DEC-2026-004, DEC-2026-008; Phase 1 layout contract.
+- **Follow-up:** Review Full zero/enum/conditional validation rules and canonical optional fields before implementing Full semantic parsing.
+
+---
+
 ## 2026-10-17 - Encode the current Full CM byte maps
 
 - **Changed:** Added the documented current Full CM 91-byte Order and 103-byte Trade layouts as contiguous Rust field maps alongside Trim, without adding Full parsing or lifecycle assumptions.
