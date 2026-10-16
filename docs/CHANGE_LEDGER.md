@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-17 - Decode CM source filenames without resolving the prefix conflict
+
+- **Changed:** Added strict decoding for CM Full/Trim Order/Trade data and `.trg` names, split and unsplit forms, validated DDMMYYYY dates, and positive two-digit stream identifiers. `CM` and `CASH` remain distinct enum values.
+- **Why:** Stream discovery needs typed filename evidence before it can detect gaps or duplicates. NSE v1.19 uses `CM_...` in layout examples and `CASH_...` in trigger tables, so silently normalizing either prefix would hide a source contradiction.
+- **Validation:** Six integration tests cover both prefixes, Full/Trim, data/trigger, split/unsplit (including an explicit unsplit-Trim regression), exact dates, and rejection of invalid calendar dates, zero/wrong-width/non-numeric streams, unknown prefixes/types/shapes, and case-wrong suffixes. Strict Clippy initially caught a shadowed unsplit-Trim pattern; the corrected decoder and regression assertion pass all 51 Rust tests, formatting, compilation, and strict Clippy.
+- **Related:** NSE Historical Order & Trade Data v1.19 sections 2.1.9, 3.1.10, and 5.3; DEC-2026-008; Phase 1 input-discovery contract.
+- **Follow-up:** Build set-level discovery that detects duplicate/gapped streams and data/trigger mismatches without assuming a fixed maximum stream count.
+
+---
+
 ## 2026-10-17 - Expose Full numeric and Trigger Price specification conflicts
 
 - **Changed:** Added the exact documented Full CM value domains, recorded the Trigger Price and signed-numeric ambiguities, added two precise vendor questions, and made Full semantic parsing contingent on representative evidence/clarification.
