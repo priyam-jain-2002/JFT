@@ -2,6 +2,17 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-17 - Encode the historical Full CM byte maps from v1.19
+
+- **Changed:** Added contiguous historical Full CM layouts for 87-byte Orders, 100-byte Trades, and 101-byte Trades; updated the governing facts to record CM Trim's documented 18 May 2026 introduction date.
+- **Why:** Historical data spans three pre-current widths. Treating every file as 91/103 would shift fields or reject valid source bytes, while width-only guessing without documented field changes would be unsafe.
+- **Evidence:** Visually inspected v1.19 section 5.1/5.2. It documents CM Trade 100->101 from 01 July 2024, the one-day 91/103 exception on 28 March 2025, permanent 87->91 Order and 101->103 Trade expansion from 16 June 2025, and Trim 68/82 introduction on 18 May 2026. Version history identifies the changed fields as Trade Number, Order Volume Disclosed/Original, and Trade Quantity.
+- **Validation:** Three new unit tests assert every historical field name, zero-based offset, width, contiguity, and exact 87/100/101-byte total. All 41 Rust tests pass; formatting, compilation, and strict Clippy pass.
+- **Related:** NSE Historical Order & Trade Data v1.19 section 5; DEC-2026-004, DEC-2026-008; Phase 1 layout contract.
+- **Follow-up:** Add validated date/version dispatch with boundary tests; keep 28 March 2025 as an explicit exception and do not infer layout from width alone.
+
+---
+
 ## 2026-10-17 - Remove unbounded framing-error tail copies
 
 - **Changed:** Replaced the owned `Vec` in `FramingError` with a lifetime-bound slice into the immutable source and propagated that lifetime through the lazy parser iterator.

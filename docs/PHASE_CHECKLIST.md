@@ -236,7 +236,7 @@ Any filing or commercial release requires professional patentability/FTO review.
 ### 6.1 Product-level facts and unknowns
 
 - **CONFIRMED FROM NSE DOCUMENTATION:** Trim is derived from Full, excludes auxiliary fields, retains core identifiers/timestamps/prices/quantities/indicators, and uses fixed-length records.
-- **CONFIRMED FROM NSE DOCUMENTATION:** CM Trim is EOD: 68-byte Orders and 82-byte Trades, LF-delimited.
+- **CONFIRMED FROM NSE DOCUMENTATION:** CM Trim was introduced on 18 May 2026 and is EOD: 68-byte Orders and 82-byte Trades, LF-delimited.
 - **CONFIRMED FROM NSE DOCUMENTATION:** Full is the complete published representation. Full Orders lag 90 calendar days; Full Trades lag 30 days.
 - **CONFIRMED FROM NSE DOCUMENTATION:** Current Full CM is 91-byte Orders/103-byte Trades. Historical parsing must handle 87/91-byte Orders and 100/101/103-byte Trades by date; 28 Mar 2025 is a documented 91/103 one-day exception, and 91/103 applies from 16 Jun 2025.
 - **CONFIRMED FROM NSE DOCUMENTATION:** CM files were split into streams from 01 Jul 2025; stream count may grow. A symbol may span streams when series differ.
@@ -514,6 +514,7 @@ Orders + Trades -> integrity -> parser -> raw-event validation -> jiffy validati
 - [x] Preserve framing-error tails as borrowed slices into immutable source bytes rather than copying the remaining file; prove pointer identity for first-record and post-record failures.
 - [x] Lazily yield one ordered, byte-addressable outcome per exactly framed record from caller-provided bytes; continue after field-level quarantine, stop after framing loss, and prove repeat runs return identical outcomes without retaining a whole-file result vector in the parser. Disk-backed streaming/mapping remains unselected pending real file-size and throughput evidence.
 - [x] Encode and exactly test the current v1.19 Full 91-byte Order and 103-byte Trade field maps, including contiguity and the shared Trim/Full Order core prefix; Full parsing and historical 87/100/101 variants remain open.
+- [x] Encode and exactly test the historical Full 87-byte Order plus 100-byte and 101-byte Trade maps from the documented trade-number and volume/quantity width changes; date dispatch and semantic parsing remain open.
 - [x] Add non-licensed synthetic current Full Order/Trade fixtures and assert the exact bytes at every documented field boundary without claiming Full semantic validation.
 - [x] Inventory all current synthetic fixture sizes and complete-file SHA-256 digests (including LF), with an explicit non-NSE/non-representative provenance warning.
 - [ ] Freeze compressed inputs; verify trigger MD5/size, compute SHA-256, write manifest.
