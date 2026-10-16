@@ -348,6 +348,8 @@ UTC conversion = intentionally unavailable until epoch validation
 
 Every table includes schema/spec version, source hashes/logical path/file part/stream/record index, raw record or immutable pointer, jiffy, session date, indicators, segment, raw/normalized symbol, series, parse status, and deterministic event key.
 
+**UNRESOLVED / REQUIRES OWNER DECISION:** [DEC-2026-009](decisions/DECISION_LOG.md#dec-2026-009) proposes the manifest/canonical identity v1, compatibility policy, unified canonical Trim/Full shape, and minimal hashing/JSON dependencies. It is intentionally not implemented while its status is Proposed.
+
 - **Order event:** order ID, side, activity, quantity, price paise, nullable Full-only attributes.
 - **Trade event:** nullable trade ID, price/quantity, buy/sell order IDs, nullable Full-only attributes.
 - **Lifecycle state:** instrument/session/order ID, side, price, visible quantity, entry/last-event jiffies, status, last-mutation provenance, anomaly flags.

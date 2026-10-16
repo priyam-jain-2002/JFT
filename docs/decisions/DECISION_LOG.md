@@ -331,6 +331,73 @@ Phase 1 expected modules use Rust; Python begins under `python/jft/`; the govern
 
 ---
 
+<a id="dec-2026-009"></a>
+
+## DEC-2026-009 - Freeze manifest identity v1 and minimal integrity dependencies
+
+- **Date:** 2026-10-17
+- **Status:** Proposed - owner decision required; not implemented
+- **Owner:** Project owner
+- **Scope:** Architecture, data, tooling
+- **Supersedes:** —
+- **Superseded by:** —
+- **Review trigger:** Representative trigger/files contradict the fields; Python conformance exposes ambiguity; or dependency/security review rejects a crate.
+
+### Context
+
+Phase 1 now has exact current Trim/Full byte maps, LF framing, strict Trim parsing, source coordinates, lossless quarantine, and raw-jiffy preservation. The next implementation step must add source identity, trigger verification, SHA-256 lineage, deterministic event keys, and JSON manifests. Those become a durable Rust/Python contract, so silently choosing libraries or identity semantics would violate the owner's consultation requirement and make later migration expensive.
+
+The design must satisfy these constraints:
+
+- identical decompressed source bytes and configuration produce identical identities and deterministic manifest content;
+- recompressing the same payload does not change record/event identity;
+- trigger MD5 is verified because NSE publishes it, but MD5 is never treated as the internal lineage/security digest;
+- local absolute paths, machine names, wall-clock generation time, and map iteration order do not contaminate deterministic identity;
+- accepted rows can point to immutable source bytes, while quarantine retains rejected raw bytes inline;
+- Rust remains authoritative and Python rejects unknown schema versions rather than guessing.
+
+### Proposed decision
+
+Activate the following as manifest/canonical identity v1:
+
+1. Add only `serde` with derive, `serde_json`, RustCrypto `sha2`, and RustCrypto `md-5`, locked through `Cargo.lock`. Do not add Arrow/Parquet, JSON-schema generation, memory mapping, or FFI dependencies in this decision.
+2. Maintain an explicit language-neutral JSON Schema in `schemas/nse_cm/manifest.schema.json`; test it against Rust golden JSON rather than generating the public contract implicitly from Rust types.
+3. Give the manifest a stable string schema ID plus integer major version. Readers reject unknown major versions. Backward-compatible additions must be optional; renamed, removed, retyped, reinterpreted, or unit-changed fields require a new major version.
+4. Separate deterministic manifest content from optional run-observation metadata. The deterministic core contains no generated-at timestamp, absolute path, host/user identity, or nondeterministically ordered map.
+5. Identify a record by the versioned tuple `(decompressed_payload_sha256, record_kind, zero_based_record_index)`. Store byte offset as independently checked provenance, not as the primary identity. Encode tuple components as separate fields initially; do not hash the tuple again until a compact key has a measured consumer need.
+6. Record both delivery and payload integrity: logical source path; product/layout/spec ID; record kind; stream/part when known; compressed size, MD5, and SHA-256; trigger-declared size/MD5 and pass/fail/not-provided status; decompressed byte count and SHA-256; payload width/delimiter; parsed/quarantined/framing counts; raw-jiffy bounds; configuration/schema/code identity.
+7. Keep wire-layout parser types product/version-specific, then map them into unified canonical Order and Trade rows with explicit `layout_id` and nullable Full-only fields. Accepted canonical rows retain immutable source pointer fields; quarantine retains full rejected bytes plus location and reason.
+
+This is a proposal, not an active decision. No dependency or schema implementation is authorized by this record until the owner changes its status to **Active**, with any requested amendments captured here.
+
+### Alternatives considered
+
+- **Shell/system hash commands plus hand-written JSON:** fewer Rust crates, but platform behavior, error handling, streaming integration, and unit testing become inconsistent. Not recommended.
+- **Custom MD5/SHA-256 or JSON implementation:** avoids dependencies but creates unjustified cryptographic/serialization correctness risk. Rejected.
+- **Use the compressed-file SHA-256 in event identity:** simpler ingestion identity, but benign recompression would rewrite all event keys. Rejected for canonical record identity; retain it as delivery provenance.
+- **Hash the full identity tuple into an opaque event key immediately:** compact, but adds encoding/canonicalization questions and hides useful provenance before a consumer requires it. Deferred.
+- **Separate canonical Trim and Full tables:** avoids null Full-only columns, but duplicates common downstream logic and complicates matched comparison. Not recommended; keep distinct wire types and one canonical shape.
+- **Add Arrow/Parquet now:** eventually required, but it substantially expands dependencies and should follow the manifest/schema contract rather than define it accidentally. Deferred.
+
+### Pre-mortem and trade-offs
+
+- **Likely failure:** nondeterministic fields make equal runs differ. **Control:** deterministic core excludes environmental metadata; golden-byte repeat tests.
+- **Likely failure:** event IDs change when the same payload is recompressed or renamed. **Control:** base identity on decompressed payload SHA-256 and record index; test two delivery containers against one identity set.
+- **Likely failure:** optional Full fields become semantically ambiguous. **Control:** require `layout_id`, explicit nullability/units, and wire-to-canonical conformance fixtures.
+- **Likely failure:** dependencies increase supply-chain/build risk. **Control:** keep the initial set minimal, commit the lockfile, review licenses/advisories, and deny unreviewed additions.
+- **Trade-off:** unified canonical rows contain null Full-only columns, but provide one stable Python interface and simpler Trim/Full comparisons.
+
+### Validation required before and after activation
+
+- Owner explicitly accepts or amends this proposal.
+- Known MD5 and SHA-256 test vectors pass; one-byte tampering fails integrity checks.
+- Golden JSON matches the explicit schema and is byte-identical across repeat runs.
+- Unknown major versions and missing required fields are rejected by both Rust and Python conformance tests.
+- Same decompressed bytes under different filenames/compression produce the same record identities; different payload bytes do not.
+- Parsed + quarantined + framing residue reconciles to manifest byte/count evidence.
+
+---
+
 ## Decision template
 
 Copy this section to add a decision. Assign the next stable ID and update both indexes.

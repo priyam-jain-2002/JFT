@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-17 - Present the manifest/schema contract for owner decision
+
+- **Changed:** Added proposed DEC-2026-009 with a concrete manifest identity, schema compatibility policy, minimal dependency set, event-key tuple, unified canonical Trim/Full recommendation, alternatives, pre-mortem, and activation tests; cross-linked the governing Phase 1 schema section.
+- **Why:** Hashing libraries, serialized fields, compatibility rules, and event identity are difficult to reverse once Python artifacts exist. The owner asked to be consulted on decisions, so implementation stops at an explicit reviewable proposal rather than silently freezing the contract.
+- **Validation:** Confirmed both decision logs contain DEC-2026-009 with Proposed status and the governing checklist links to its stable anchor. No Cargo dependencies, schemas, parser behavior, or application code changed.
+- **Related:** DEC-2026-008, proposed DEC-2026-009; Phase 1 manifest/canonical boundary.
+- **Follow-up:** Owner accepts or amends DEC-2026-009; only then activate it and implement its test-first integrity/manifest slice.
+
+---
+
 ## 2026-10-17 - Exhaustively prove Trim single-byte evidence retention
 
 - **Changed:** Added deterministic mutation sweeps that substitute all 256 byte values at every byte position in the current Trim Order and Trade fixtures.

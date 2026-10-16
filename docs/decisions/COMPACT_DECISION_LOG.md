@@ -12,6 +12,7 @@ Use this file for a quick view. The complete rationale and history live in [`DEC
 | DEC-2026-006 | Superseded | Hold live/profit use behind written data-rights clearance. | Replaced by the external-dependency boundary in DEC-2026-007. | [Details](DECISION_LOG.md#dec-2026-006) |
 | DEC-2026-007 | Active | Legal compliance is external to repository engineering. | Phase 1 offline work may proceed while Phase 0 technical qualification continues; operational activation remains an owner-controlled external dependency. | [Details](DECISION_LOG.md#dec-2026-007) |
 | DEC-2026-008 | Active | Rust owns deterministic market-data replay; Python owns research/modeling. | Cross at versioned Arrow/Parquet plus manifest/schema/hash artifacts; no duplicate Python raw parser/book. | [Details](DECISION_LOG.md#dec-2026-008) |
+| DEC-2026-009 | Proposed | Freeze a deterministic manifest/canonical identity v1 and minimal Rust dependency set. | Owner review is required before adding hashing/JSON crates or treating schema/event-key fields as stable. | [Details](DECISION_LOG.md#dec-2026-009) |
 
 ## Maintenance rule
 
