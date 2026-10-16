@@ -201,6 +201,8 @@ This checklist is retained so the external dependency is not forgotten; completi
 9. Can NDAL provide representative current Trim 68/82 and Full 91/103 paired sample days with trigger files and written answers on same-jiffy ordering, modify/cancel quantities, and trade-driven quantity reduction?
 10. Would an external multi-user backtest/paper/live platform require a separate redistribution/non-display/product license, and is it prohibited under the supplied agreement?
 11. Is the exchange-jiffy epoch actually `1980-01-01 00:00:00 UTC`, or local IST midnight? Please reconcile the v1.19 prose with its published `315513000`-second Unix-offset constant, which is 19,800 seconds smaller than the actual UTC offset of `315532800` seconds.
+12. Section 5.4 says integral fields are signed unless explicitly stated otherwise, but CM order/trade identifiers and jiffies have no displayed range. Can any CM identifier or jiffy contain a leading minus sign, or are these fields always unsigned decimal digits in delivered files?
+13. For Full CM Orders, Trigger Price's valid-range column says non-zero while its comment says the value is zero for non-stop-loss orders. Please confirm the exact conditional rules for Trigger Price, Limit Price, Market Order Flag, and Stop Loss Flag, including how market and stop-loss market orders are encoded.
 
 Before operational live-data use, capital deployment, redistribution, or external-product release, the owner should retain the dated NDAL response, executed agreement/Annexure II, permitted/prohibited-use matrix, conditions, legal reviewer, approval, and next review trigger outside or alongside the appropriate operational governance process. The repository does not determine or certify legal compliance.
 
@@ -327,11 +329,19 @@ Current Full CM Trades (103 bytes):
 
 **DESIGN DECISION:** Full-only identity fields are not needed for the initial thesis. Market/IOC/trigger/disclosed/original fields may improve lifecycle and fills; the Trim-vs-Full report must measure their value rather than assume it.
 
+**CONFIRMED FROM NSE DOCUMENTATION:** Full Order Volume Disclosed is non-negative and explicitly zero for non-disclosed-quantity orders; Volume Original and Limit Price are labelled non-zero/non-negative. Full Trade Price and Quantity are labelled non-zero/non-negative. Market, Stop Loss, and IOC flags are `Y`/`N`; algo indicators are `0`-`3`; client identity flags are `1`-`3`.
+
+**CONFIRMED SOURCE CONTRADICTION:** Full Order Trigger Price is labelled non-zero/non-negative in the valid-range column, but the same field's comment says it is `0` for non-stop-loss orders. Section 5.4 also says integral fields are signed unless a field says otherwise, while order/trade identifiers and jiffies show no explicit range even though their delivered encoding is described as numeric.
+
+**DESIGN DECISION:** Do not implement Full semantic parsing or conditional zero-value rejection from the contradictory table alone. Preserve the exact wire bytes, obtain representative files/vendor clarification, and separate structural numeric decoding from conditional semantic validation. The existing fixture-first Trim parser's unsigned ID/jiffy handling remains provisional evidence, not an accepted all-era claim.
+
+**UNRESOLVED / REQUIRES VALIDATION:** Whether a minus sign can ever appear in CM IDs/jiffies; Trigger/Limit Price behavior for regular, market, stop-loss limit, and stop-loss market orders; and whether violations should be quarantined or classified as contextual anomalies.
+
 ### 6.5 Jiffy policy
 
 - **CONFIRMED FROM NSE DOCUMENTATION:** 65,536 jiffies equal one second. The v1.19 prose says the counter starts at 01 Jan 1980 00:00:00 GMT; its worked conversion instead uses a `315513000`-second Unix offset and then adds 05:30 for IST display. It warns Excel is millisecond-limited.
 - **CONFIRMED FROM INDEPENDENT ARITHMETIC:** The actual Unix-to-1980-01-01-UTC offset is `315532800` seconds. NSE's published constant is 19,800 seconds smaller, exactly 05:30. Therefore the prose, constant, and timezone step do not jointly define one unambiguous UTC conversion.
-- **DESIGN DECISION:** `exchange_jiffy` is an exact unsigned integer copied from the 14 bytes.
+- **DESIGN DECISION:** The raw 14-byte jiffy token and source record are authoritative. The current Trim fixture parser additionally exposes an exact `u64` only after all 14 bytes pass ASCII-digit validation; that unsigned interpretation is provisional until the section 5.4 ambiguity is resolved against delivered data.
 - **DESIGN DECISION:** Decompose with integer/rational arithmetic and retain the fractional remainder; never round-trip through float.
 - **DESIGN DECISION:** Do not emit or label a UTC timestamp, session date, or timezone-derived display until the epoch ambiguity is resolved. The raw jiffy, integer whole-second quotient, and remainder remain canonical and lossless.
 - **DESIGN DECISION:** Same-jiffy events retain file/stream/record provenance. A reproducible tie-breaker is not claimed as exchange causality.
@@ -521,6 +531,7 @@ Orders + Trades -> integrity -> parser -> raw-event validation -> jiffy validati
 - [ ] Freeze compressed inputs; verify trigger MD5/size, compute SHA-256, write manifest.
 - [ ] Discover all parts/streams rather than hard-code a count; reject missing/duplicate parts.
 - [ ] Implement date/version-aware schemas for Trim 68/82 and required Full variants.
+- [ ] Resolve signed numeric encoding and Full Trigger/Limit/flag conditional rules before Full semantic parsing; do not promote the current unsigned fixture behavior into a cross-era canonical contract without evidence.
 - [ ] Preserve raw bytes/padding/file/stream/index/jiffy and a reason for every quarantine.
 - [x] Preserve and decompose raw jiffies exactly; test the NSE example and fractional remainder; prove that NSE's published epoch constant differs from the actual UTC offset by exactly 19,800 seconds.
 - [ ] Resolve the jiffy epoch, then test independently known timestamps, day boundaries, timezone display, and ties before exposing UTC/session-date fields.

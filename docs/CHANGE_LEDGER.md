@@ -2,6 +2,17 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-17 - Expose Full numeric and Trigger Price specification conflicts
+
+- **Changed:** Added the exact documented Full CM value domains, recorded the Trigger Price and signed-numeric ambiguities, added two precise vendor questions, and made Full semantic parsing contingent on representative evidence/clarification.
+- **Why:** Implementing the valid-range column literally would reject the documented zero Trigger Price for non-stop-loss orders. Treating every numeric field as unsigned also conflicts with section 5.4's default-signed instruction for fields without explicit ranges. Either silent assumption could corrupt or discard valid history.
+- **Evidence:** v1.19 Full CM Order pages label Trigger Price non-zero/non-negative and simultaneously state it is `0` for non-stop-loss orders. Section 5.4 defines unspecified integral fields as signed; CM ID/jiffy rows show no range. Other explicit Full value domains are unambiguous and now recorded.
+- **Validation:** Reviewed the complete relevant Full CM Order/Trade tables and sections 5.4/5.5 in the supplied PDF; checked the governing plan, README, and clarification list for consistent status. No parser behavior, dependency, schema, or application code changed.
+- **Related:** NSE Historical Order & Trade Data v1.19 sections 3.1.1, 3.1.2, and 5.4; DEC-2026-004, DEC-2026-008; Phase 1 semantic-validation gate.
+- **Follow-up:** Validate delivered encodings and conditional price rules before implementing Full wire-to-event parsing; keep exact raw bytes authoritative meanwhile.
+
+---
+
 ## 2026-10-17 - Add validated CM source-date layout dispatch
 
 - **Changed:** Added a dependency-free validated Gregorian `SourceDate`, typed Full Order/Trade and Trim layout versions, field/length accessors, and source-date dispatch for all documented CM transitions.
