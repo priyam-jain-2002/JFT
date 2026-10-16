@@ -17,6 +17,8 @@ impl FieldLayout {
 
 pub const TRIM_ORDER_RECORD_LEN: usize = 68;
 pub const TRIM_TRADE_RECORD_LEN: usize = 82;
+pub const CURRENT_FULL_ORDER_RECORD_LEN: usize = 91;
+pub const CURRENT_FULL_TRADE_RECORD_LEN: usize = 103;
 
 pub const TRIM_ORDER_FIELDS: [FieldLayout; 10] = [
     FieldLayout {
@@ -119,11 +121,173 @@ pub const TRIM_TRADE_FIELDS: [FieldLayout; 9] = [
     },
 ];
 
+pub const CURRENT_FULL_ORDER_FIELDS: [FieldLayout; 17] = [
+    FieldLayout {
+        name: "record_indicator",
+        offset: 0,
+        width: 2,
+    },
+    FieldLayout {
+        name: "segment",
+        offset: 2,
+        width: 4,
+    },
+    FieldLayout {
+        name: "order_number",
+        offset: 6,
+        width: 16,
+    },
+    FieldLayout {
+        name: "exchange_jiffy",
+        offset: 22,
+        width: 14,
+    },
+    FieldLayout {
+        name: "side",
+        offset: 36,
+        width: 1,
+    },
+    FieldLayout {
+        name: "activity",
+        offset: 37,
+        width: 1,
+    },
+    FieldLayout {
+        name: "symbol",
+        offset: 38,
+        width: 10,
+    },
+    FieldLayout {
+        name: "series",
+        offset: 48,
+        width: 2,
+    },
+    FieldLayout {
+        name: "disclosed_quantity",
+        offset: 50,
+        width: 10,
+    },
+    FieldLayout {
+        name: "original_quantity",
+        offset: 60,
+        width: 10,
+    },
+    FieldLayout {
+        name: "limit_price_paise",
+        offset: 70,
+        width: 8,
+    },
+    FieldLayout {
+        name: "trigger_price_paise",
+        offset: 78,
+        width: 8,
+    },
+    FieldLayout {
+        name: "market_order_flag",
+        offset: 86,
+        width: 1,
+    },
+    FieldLayout {
+        name: "stop_loss_flag",
+        offset: 87,
+        width: 1,
+    },
+    FieldLayout {
+        name: "ioc_flag",
+        offset: 88,
+        width: 1,
+    },
+    FieldLayout {
+        name: "algo_indicator",
+        offset: 89,
+        width: 1,
+    },
+    FieldLayout {
+        name: "client_identity",
+        offset: 90,
+        width: 1,
+    },
+];
+
+pub const CURRENT_FULL_TRADE_FIELDS: [FieldLayout; 14] = [
+    FieldLayout {
+        name: "record_indicator",
+        offset: 0,
+        width: 2,
+    },
+    FieldLayout {
+        name: "segment",
+        offset: 2,
+        width: 4,
+    },
+    FieldLayout {
+        name: "trade_number",
+        offset: 6,
+        width: 17,
+    },
+    FieldLayout {
+        name: "exchange_jiffy",
+        offset: 23,
+        width: 14,
+    },
+    FieldLayout {
+        name: "symbol",
+        offset: 37,
+        width: 10,
+    },
+    FieldLayout {
+        name: "series",
+        offset: 47,
+        width: 2,
+    },
+    FieldLayout {
+        name: "price_paise",
+        offset: 49,
+        width: 8,
+    },
+    FieldLayout {
+        name: "quantity",
+        offset: 57,
+        width: 10,
+    },
+    FieldLayout {
+        name: "buy_order_number",
+        offset: 67,
+        width: 16,
+    },
+    FieldLayout {
+        name: "buy_algo_indicator",
+        offset: 83,
+        width: 1,
+    },
+    FieldLayout {
+        name: "buy_client_identity",
+        offset: 84,
+        width: 1,
+    },
+    FieldLayout {
+        name: "sell_order_number",
+        offset: 85,
+        width: 16,
+    },
+    FieldLayout {
+        name: "sell_algo_indicator",
+        offset: 101,
+        width: 1,
+    },
+    FieldLayout {
+        name: "sell_client_identity",
+        offset: 102,
+        width: 1,
+    },
+];
+
 #[cfg(test)]
 mod tests {
     use super::{
-        FieldLayout, TRIM_ORDER_FIELDS, TRIM_ORDER_RECORD_LEN, TRIM_TRADE_FIELDS,
-        TRIM_TRADE_RECORD_LEN,
+        CURRENT_FULL_ORDER_FIELDS, CURRENT_FULL_ORDER_RECORD_LEN, CURRENT_FULL_TRADE_FIELDS,
+        CURRENT_FULL_TRADE_RECORD_LEN, FieldLayout, TRIM_ORDER_FIELDS, TRIM_ORDER_RECORD_LEN,
+        TRIM_TRADE_FIELDS, TRIM_TRADE_RECORD_LEN,
     };
 
     fn assert_contiguous(fields: &[FieldLayout], expected_len: usize) {
@@ -147,5 +311,61 @@ mod tests {
     #[test]
     fn trim_trade_layout_is_contiguous_and_82_bytes() {
         assert_contiguous(&TRIM_TRADE_FIELDS, TRIM_TRADE_RECORD_LEN);
+    }
+
+    #[test]
+    fn current_full_order_layout_matches_the_documented_91_byte_map() {
+        assert_contiguous(&CURRENT_FULL_ORDER_FIELDS, CURRENT_FULL_ORDER_RECORD_LEN);
+        assert_eq!(
+            CURRENT_FULL_ORDER_FIELDS.map(|field| (field.name, field.offset, field.width)),
+            [
+                ("record_indicator", 0, 2),
+                ("segment", 2, 4),
+                ("order_number", 6, 16),
+                ("exchange_jiffy", 22, 14),
+                ("side", 36, 1),
+                ("activity", 37, 1),
+                ("symbol", 38, 10),
+                ("series", 48, 2),
+                ("disclosed_quantity", 50, 10),
+                ("original_quantity", 60, 10),
+                ("limit_price_paise", 70, 8),
+                ("trigger_price_paise", 78, 8),
+                ("market_order_flag", 86, 1),
+                ("stop_loss_flag", 87, 1),
+                ("ioc_flag", 88, 1),
+                ("algo_indicator", 89, 1),
+                ("client_identity", 90, 1),
+            ]
+        );
+    }
+
+    #[test]
+    fn current_full_trade_layout_matches_the_documented_103_byte_map() {
+        assert_contiguous(&CURRENT_FULL_TRADE_FIELDS, CURRENT_FULL_TRADE_RECORD_LEN);
+        assert_eq!(
+            CURRENT_FULL_TRADE_FIELDS.map(|field| (field.name, field.offset, field.width)),
+            [
+                ("record_indicator", 0, 2),
+                ("segment", 2, 4),
+                ("trade_number", 6, 17),
+                ("exchange_jiffy", 23, 14),
+                ("symbol", 37, 10),
+                ("series", 47, 2),
+                ("price_paise", 49, 8),
+                ("quantity", 57, 10),
+                ("buy_order_number", 67, 16),
+                ("buy_algo_indicator", 83, 1),
+                ("buy_client_identity", 84, 1),
+                ("sell_order_number", 85, 16),
+                ("sell_algo_indicator", 101, 1),
+                ("sell_client_identity", 102, 1),
+            ]
+        );
+    }
+
+    #[test]
+    fn trim_and_current_full_orders_share_the_exact_core_prefix() {
+        assert_eq!(&TRIM_ORDER_FIELDS[..8], &CURRENT_FULL_ORDER_FIELDS[..8]);
     }
 }

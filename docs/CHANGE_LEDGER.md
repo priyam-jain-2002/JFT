@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-17 - Encode the current Full CM byte maps
+
+- **Changed:** Added the documented current Full CM 91-byte Order and 103-byte Trade layouts as contiguous Rust field maps alongside Trim, without adding Full parsing or lifecycle assumptions.
+- **Why:** Date/version dispatch and Trim-versus-Full qualification require exact current Full byte boundaries before fixtures or semantic parsing. Separating byte maps from semantics keeps this step independently auditable.
+- **Validation:** Three unit tests assert every Full field name, zero-based offset, width, total record length, contiguity, and the exact eight-field core prefix shared by Trim and Full Orders. All 32 Rust tests pass; formatting, compilation, and strict Clippy pass.
+- **Related:** NSE Historical Order & Trade Data v1.19; DEC-2026-004, DEC-2026-008; Phase 1 layout contract.
+- **Follow-up:** Add synthetic non-licensed Full fixtures and strict Full parsing only after reviewing zero/enum rules; add historical 87/100/101 maps through explicit date/version dispatch rather than width guessing.
+
+---
+
 ## 2026-10-17 - Account for every framed source record
 
 - **Changed:** Added a lazy source-level Trim Order/Trade iterator over caller-provided bytes that yields one ordered result per framed record, including zero-based record index and byte offset; field failures remain lossless quarantine outcomes and do not conceal later well-framed records, while framing loss stops without guessed resynchronization.
