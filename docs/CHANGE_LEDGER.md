@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-17 - Add validated CM source-date layout dispatch
+
+- **Changed:** Added a dependency-free validated Gregorian `SourceDate`, typed Full Order/Trade and Trim layout versions, field/length accessors, and source-date dispatch for all documented CM transitions.
+- **Why:** Width guessing can misclassify corruption and cannot safely handle the one-day 28 March 2025 expansion followed by rollback. The file's authoritative trading date must select the wire schema before framing/parsing.
+- **Validation:** Tests cover invalid months/days and Gregorian leap-year rules; 30 June/01 July 2024, 27/28/29 March 2025, 15/16 June 2025, and 17/18 May 2026 boundaries; the exception rollback; and field-list totals for every selected version. All 45 Rust tests pass; formatting, compilation, and strict Clippy pass.
+- **Related:** NSE Historical Order & Trade Data v1.19 section 5; DEC-2026-004, DEC-2026-008; Phase 1 version-dispatch contract.
+- **Follow-up:** Bind selected layouts to explicit product/date metadata in the manifest after DEC-2026-009 approval; never auto-select a schema solely because bytes happen to fit a width.
+
+---
+
 ## 2026-10-17 - Encode the historical Full CM byte maps from v1.19
 
 - **Changed:** Added contiguous historical Full CM layouts for 87-byte Orders, 100-byte Trades, and 101-byte Trades; updated the governing facts to record CM Trim's documented 18 May 2026 introduction date.

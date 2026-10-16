@@ -23,6 +23,190 @@ pub const LEGACY_FULL_TRADE_101_RECORD_LEN: usize = 101;
 pub const CURRENT_FULL_ORDER_RECORD_LEN: usize = 91;
 pub const CURRENT_FULL_TRADE_RECORD_LEN: usize = 103;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct SourceDate {
+    year: u16,
+    month: u8,
+    day: u8,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SourceDateError {
+    YearZero,
+    InvalidMonth {
+        month: u8,
+    },
+    InvalidDay {
+        year: u16,
+        month: u8,
+        day: u8,
+        maximum: u8,
+    },
+}
+
+impl SourceDate {
+    pub fn new(year: u16, month: u8, day: u8) -> Result<Self, SourceDateError> {
+        if year == 0 {
+            return Err(SourceDateError::YearZero);
+        }
+        if !(1..=12).contains(&month) {
+            return Err(SourceDateError::InvalidMonth { month });
+        }
+
+        let maximum = days_in_month(year, month);
+        if day == 0 || day > maximum {
+            return Err(SourceDateError::InvalidDay {
+                year,
+                month,
+                day,
+                maximum,
+            });
+        }
+
+        Ok(Self { year, month, day })
+    }
+
+    const fn documented(year: u16, month: u8, day: u8) -> Self {
+        Self { year, month, day }
+    }
+}
+
+const fn days_in_month(year: u16, month: u8) -> u8 {
+    match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if is_leap_year(year) => 29,
+        2 => 28,
+        _ => 0,
+    }
+}
+
+const fn is_leap_year(year: u16) -> bool {
+    year.is_multiple_of(4) && (!year.is_multiple_of(100) || year.is_multiple_of(400))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FullOrderLayoutVersion {
+    Bytes87,
+    Bytes91,
+}
+
+impl FullOrderLayoutVersion {
+    #[must_use]
+    pub const fn record_len(self) -> usize {
+        match self {
+            Self::Bytes87 => LEGACY_FULL_ORDER_RECORD_LEN,
+            Self::Bytes91 => CURRENT_FULL_ORDER_RECORD_LEN,
+        }
+    }
+
+    #[must_use]
+    pub const fn fields(self) -> &'static [FieldLayout] {
+        match self {
+            Self::Bytes87 => &LEGACY_FULL_ORDER_FIELDS,
+            Self::Bytes91 => &CURRENT_FULL_ORDER_FIELDS,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FullTradeLayoutVersion {
+    Bytes100,
+    Bytes101,
+    Bytes103,
+}
+
+impl FullTradeLayoutVersion {
+    #[must_use]
+    pub const fn record_len(self) -> usize {
+        match self {
+            Self::Bytes100 => LEGACY_FULL_TRADE_100_RECORD_LEN,
+            Self::Bytes101 => LEGACY_FULL_TRADE_101_RECORD_LEN,
+            Self::Bytes103 => CURRENT_FULL_TRADE_RECORD_LEN,
+        }
+    }
+
+    #[must_use]
+    pub const fn fields(self) -> &'static [FieldLayout] {
+        match self {
+            Self::Bytes100 => &LEGACY_FULL_TRADE_100_FIELDS,
+            Self::Bytes101 => &LEGACY_FULL_TRADE_101_FIELDS,
+            Self::Bytes103 => &CURRENT_FULL_TRADE_FIELDS,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FullCmLayoutVersion {
+    pub order: FullOrderLayoutVersion,
+    pub trade: FullTradeLayoutVersion,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TrimCmLayoutVersion {
+    Bytes68And82,
+}
+
+impl TrimCmLayoutVersion {
+    #[must_use]
+    pub const fn order_record_len(self) -> usize {
+        match self {
+            Self::Bytes68And82 => TRIM_ORDER_RECORD_LEN,
+        }
+    }
+
+    #[must_use]
+    pub const fn order_fields(self) -> &'static [FieldLayout] {
+        match self {
+            Self::Bytes68And82 => &TRIM_ORDER_FIELDS,
+        }
+    }
+
+    #[must_use]
+    pub const fn trade_record_len(self) -> usize {
+        match self {
+            Self::Bytes68And82 => TRIM_TRADE_RECORD_LEN,
+        }
+    }
+
+    #[must_use]
+    pub const fn trade_fields(self) -> &'static [FieldLayout] {
+        match self {
+            Self::Bytes68And82 => &TRIM_TRADE_FIELDS,
+        }
+    }
+}
+
+const TRADE_NUMBER_EXPANSION: SourceDate = SourceDate::documented(2024, 7, 1);
+const ONE_DAY_VOLUME_EXCEPTION: SourceDate = SourceDate::documented(2025, 3, 28);
+const PERMANENT_VOLUME_EXPANSION: SourceDate = SourceDate::documented(2025, 6, 16);
+const TRIM_INTRODUCTION: SourceDate = SourceDate::documented(2026, 5, 18);
+
+#[must_use]
+pub fn full_cm_layout_for_date(date: SourceDate) -> FullCmLayoutVersion {
+    if date == ONE_DAY_VOLUME_EXCEPTION || date >= PERMANENT_VOLUME_EXPANSION {
+        FullCmLayoutVersion {
+            order: FullOrderLayoutVersion::Bytes91,
+            trade: FullTradeLayoutVersion::Bytes103,
+        }
+    } else if date >= TRADE_NUMBER_EXPANSION {
+        FullCmLayoutVersion {
+            order: FullOrderLayoutVersion::Bytes87,
+            trade: FullTradeLayoutVersion::Bytes101,
+        }
+    } else {
+        FullCmLayoutVersion {
+            order: FullOrderLayoutVersion::Bytes87,
+            trade: FullTradeLayoutVersion::Bytes100,
+        }
+    }
+}
+
+#[must_use]
+pub fn trim_cm_layout_for_date(date: SourceDate) -> Option<TrimCmLayoutVersion> {
+    (date >= TRIM_INTRODUCTION).then_some(TrimCmLayoutVersion::Bytes68And82)
+}
+
 pub const TRIM_ORDER_FIELDS: [FieldLayout; 10] = [
     FieldLayout {
         name: "record_indicator",
@@ -528,11 +712,12 @@ pub const LEGACY_FULL_TRADE_101_FIELDS: [FieldLayout; 14] = [
 mod tests {
     use super::{
         CURRENT_FULL_ORDER_FIELDS, CURRENT_FULL_ORDER_RECORD_LEN, CURRENT_FULL_TRADE_FIELDS,
-        CURRENT_FULL_TRADE_RECORD_LEN, FieldLayout, LEGACY_FULL_ORDER_FIELDS,
-        LEGACY_FULL_ORDER_RECORD_LEN, LEGACY_FULL_TRADE_100_FIELDS,
+        CURRENT_FULL_TRADE_RECORD_LEN, FieldLayout, FullOrderLayoutVersion, FullTradeLayoutVersion,
+        LEGACY_FULL_ORDER_FIELDS, LEGACY_FULL_ORDER_RECORD_LEN, LEGACY_FULL_TRADE_100_FIELDS,
         LEGACY_FULL_TRADE_100_RECORD_LEN, LEGACY_FULL_TRADE_101_FIELDS,
-        LEGACY_FULL_TRADE_101_RECORD_LEN, TRIM_ORDER_FIELDS, TRIM_ORDER_RECORD_LEN,
-        TRIM_TRADE_FIELDS, TRIM_TRADE_RECORD_LEN,
+        LEGACY_FULL_TRADE_101_RECORD_LEN, SourceDate, SourceDateError, TRIM_ORDER_FIELDS,
+        TRIM_ORDER_RECORD_LEN, TRIM_TRADE_FIELDS, TRIM_TRADE_RECORD_LEN, TrimCmLayoutVersion,
+        full_cm_layout_for_date, trim_cm_layout_for_date,
     };
 
     fn assert_contiguous(fields: &[FieldLayout], expected_len: usize) {
@@ -697,5 +882,113 @@ mod tests {
                 ("sell_client_identity", 100, 1),
             ]
         );
+    }
+
+    #[test]
+    fn source_date_rejects_invalid_gregorian_dates() {
+        assert_eq!(SourceDate::new(0, 1, 1), Err(SourceDateError::YearZero));
+        assert_eq!(
+            SourceDate::new(2025, 13, 1),
+            Err(SourceDateError::InvalidMonth { month: 13 })
+        );
+        assert_eq!(
+            SourceDate::new(2025, 2, 29),
+            Err(SourceDateError::InvalidDay {
+                year: 2025,
+                month: 2,
+                day: 29,
+                maximum: 28,
+            })
+        );
+        assert!(SourceDate::new(2024, 2, 29).is_ok());
+        assert!(SourceDate::new(2000, 2, 29).is_ok());
+        assert!(SourceDate::new(2100, 2, 29).is_err());
+    }
+
+    #[test]
+    fn full_layout_dispatches_across_every_documented_boundary() {
+        let cases = [
+            (
+                (2024, 6, 30),
+                FullOrderLayoutVersion::Bytes87,
+                FullTradeLayoutVersion::Bytes100,
+            ),
+            (
+                (2024, 7, 1),
+                FullOrderLayoutVersion::Bytes87,
+                FullTradeLayoutVersion::Bytes101,
+            ),
+            (
+                (2025, 3, 27),
+                FullOrderLayoutVersion::Bytes87,
+                FullTradeLayoutVersion::Bytes101,
+            ),
+            (
+                (2025, 3, 28),
+                FullOrderLayoutVersion::Bytes91,
+                FullTradeLayoutVersion::Bytes103,
+            ),
+            (
+                (2025, 3, 29),
+                FullOrderLayoutVersion::Bytes87,
+                FullTradeLayoutVersion::Bytes101,
+            ),
+            (
+                (2025, 6, 15),
+                FullOrderLayoutVersion::Bytes87,
+                FullTradeLayoutVersion::Bytes101,
+            ),
+            (
+                (2025, 6, 16),
+                FullOrderLayoutVersion::Bytes91,
+                FullTradeLayoutVersion::Bytes103,
+            ),
+        ];
+
+        for ((year, month, day), order, trade) in cases {
+            let selected = full_cm_layout_for_date(
+                SourceDate::new(year, month, day).expect("valid test date"),
+            );
+            assert_eq!(selected.order, order);
+            assert_eq!(selected.trade, trade);
+        }
+    }
+
+    #[test]
+    fn selected_full_versions_expose_the_matching_fields_and_lengths() {
+        for order in [
+            FullOrderLayoutVersion::Bytes87,
+            FullOrderLayoutVersion::Bytes91,
+        ] {
+            assert_eq!(
+                order.fields().last().expect("last field").end(),
+                order.record_len()
+            );
+        }
+        for trade in [
+            FullTradeLayoutVersion::Bytes100,
+            FullTradeLayoutVersion::Bytes101,
+            FullTradeLayoutVersion::Bytes103,
+        ] {
+            assert_eq!(
+                trade.fields().last().expect("last field").end(),
+                trade.record_len()
+            );
+        }
+    }
+
+    #[test]
+    fn trim_dispatch_starts_on_the_documented_introduction_date() {
+        assert_eq!(
+            trim_cm_layout_for_date(SourceDate::new(2026, 5, 17).expect("valid date")),
+            None
+        );
+        let selected = trim_cm_layout_for_date(SourceDate::new(2026, 5, 18).expect("valid date"))
+            .expect("Trim is documented from this date");
+        assert_eq!(selected, TrimCmLayoutVersion::Bytes68And82);
+        assert_eq!(selected.order_record_len(), TRIM_ORDER_RECORD_LEN);
+        assert_eq!(selected.trade_record_len(), TRIM_TRADE_RECORD_LEN);
+        assert_eq!(selected.order_fields(), TRIM_ORDER_FIELDS);
+        assert_eq!(selected.trade_fields(), TRIM_TRADE_FIELDS);
     }
 }
