@@ -507,6 +507,7 @@ Orders + Trades -> integrity -> parser -> raw-event validation -> jiffy validati
 - [x] Define contiguous current CM Trim 68-byte Order and 82-byte Trade layouts; parse one synthetic golden record of each, preserve exact input bytes, and quarantine wrong width, invalid numerics, zero quantity, and unknown activity with field evidence.
 - [x] Exhaustively mutate every numeric byte and test all documented session/side/activity codes, zero price/quantity rules, non-ASCII text, LF rejection, and literal-`b` preservation; all failures retain raw input and field evidence.
 - [x] Frame exact-width LF-delimited records without copying valid payloads; attach zero-based record index and source byte offset; stop without resynchronization guesses and preserve the entire unconsumed tail on partial records or unexpected delimiters.
+- [x] Lazily yield one ordered, byte-addressable outcome per exactly framed record from caller-provided bytes; continue after field-level quarantine, stop after framing loss, and prove repeat runs return identical outcomes without retaining a whole-file result vector in the parser. Disk-backed streaming/mapping remains unselected pending real file-size and throughput evidence.
 - [ ] Freeze compressed inputs; verify trigger MD5/size, compute SHA-256, write manifest.
 - [ ] Discover all parts/streams rather than hard-code a count; reject missing/duplicate parts.
 - [ ] Implement date/version-aware schemas for Trim 68/82 and required Full variants.
@@ -528,7 +529,7 @@ Orders + Trades -> integrity -> parser -> raw-event validation -> jiffy validati
 
 ```text
 crates/jft-nse-cm/src/{framing,layouts,manifest,parser,jiffy,events,lifecycle,book,reconcile,quarantine}.rs
-crates/jft-nse-cm/tests/{record_framing,layouts,jiffy,lifecycle,replay_determinism,trade_reconciliation}.rs
+crates/jft-nse-cm/tests/{record_framing,source_parse,layouts,jiffy,lifecycle,replay_determinism,trade_reconciliation}.rs
 python/jft/{io,diagnostics}/
 schemas/nse_cm/{canonical.schema.json,manifest.schema.json}
 tests/fixtures/nse_cm/synthetic_nonlicensed/

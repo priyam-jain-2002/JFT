@@ -3,6 +3,7 @@
 use crate::events::{
     MarketSegment, OrderActivity, OrderEvent, ParsedRecord, Session, Side, TradeEvent,
 };
+use crate::framing::{FixedWidthLfRecords, FramingError};
 use crate::jiffy::ExchangeJiffy;
 use crate::layouts::{
     FieldLayout, TRIM_ORDER_FIELDS, TRIM_ORDER_RECORD_LEN, TRIM_TRADE_FIELDS, TRIM_TRADE_RECORD_LEN,
@@ -11,6 +12,51 @@ use crate::quarantine::{QuarantineReason, QuarantinedRecord};
 
 pub type ParsedTrimOrder = ParsedRecord<OrderEvent, TRIM_ORDER_RECORD_LEN>;
 pub type ParsedTrimTrade = ParsedRecord<TradeEvent, TRIM_TRADE_RECORD_LEN>;
+
+/// The parse result for one exactly framed source record.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LocatedParse<T, const N: usize> {
+    pub record_index: usize,
+    pub byte_offset: usize,
+    pub result: Result<ParsedRecord<T, N>, QuarantinedRecord>,
+}
+
+/// Streaming, ordered, byte-addressable parse outcomes for one source.
+///
+/// Field-level parse failures stay inside `LocatedParse::result`, so iteration
+/// can continue to later exactly framed records. A framing failure is the outer
+/// error and terminates the underlying framing iterator without guessing.
+pub struct ParsedRecords<'a, T, const N: usize> {
+    framed: FixedWidthLfRecords<'a, N>,
+    parse_record: fn(&[u8]) -> Result<ParsedRecord<T, N>, QuarantinedRecord>,
+}
+
+impl<T, const N: usize> Iterator for ParsedRecords<'_, T, N> {
+    type Item = Result<LocatedParse<T, N>, FramingError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.framed.next().map(|framed| {
+            framed.map(|framed| LocatedParse {
+                record_index: framed.record_index,
+                byte_offset: framed.byte_offset,
+                result: (self.parse_record)(framed.raw),
+            })
+        })
+    }
+}
+
+pub type ParsedTrimOrderSource<'a> = ParsedRecords<'a, OrderEvent, TRIM_ORDER_RECORD_LEN>;
+pub type ParsedTrimTradeSource<'a> = ParsedRecords<'a, TradeEvent, TRIM_TRADE_RECORD_LEN>;
+
+#[must_use]
+pub fn parse_trim_order_source(source: &[u8]) -> ParsedTrimOrderSource<'_> {
+    parse_source(source, parse_trim_order)
+}
+
+#[must_use]
+pub fn parse_trim_trade_source(source: &[u8]) -> ParsedTrimTradeSource<'_> {
+    parse_source(source, parse_trim_trade)
+}
 
 pub fn parse_trim_order(record: &[u8]) -> Result<ParsedTrimOrder, QuarantinedRecord> {
     let raw = exact_record::<TRIM_ORDER_RECORD_LEN>(record)?;
@@ -72,6 +118,16 @@ pub fn parse_trim_trade(record: &[u8]) -> Result<ParsedTrimTrade, QuarantinedRec
         },
         raw,
     })
+}
+
+fn parse_source<T, const N: usize>(
+    source: &[u8],
+    parse_record: fn(&[u8]) -> Result<ParsedRecord<T, N>, QuarantinedRecord>,
+) -> ParsedRecords<'_, T, N> {
+    ParsedRecords {
+        framed: FixedWidthLfRecords::new(source),
+        parse_record,
+    }
 }
 
 fn exact_record<const N: usize>(record: &[u8]) -> Result<[u8; N], QuarantinedRecord> {

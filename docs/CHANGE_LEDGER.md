@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-17 - Account for every framed source record
+
+- **Changed:** Added a lazy source-level Trim Order/Trade iterator over caller-provided bytes that yields one ordered result per framed record, including zero-based record index and byte offset; field failures remain lossless quarantine outcomes and do not conceal later well-framed records, while framing loss stops without guessed resynchronization.
+- **Why:** Per-record parsing alone cannot prove whole-source completeness. Replay inputs need deterministic accepted/quarantined counts and exact source coordinates before manifest identity, lifecycle reduction, or book state.
+- **Validation:** Four source tests prove three-record accounting across a middle field failure, exact offsets, lossless unknown-tail capture, complete Trade-source parsing, correct accepted/quarantined counts, iterator termination after framing loss, and identical results across repeat runs. All 29 Rust tests pass; formatting, compilation, and strict Clippy pass.
+- **Related:** DEC-2026-004, DEC-2026-008; Phase 1 byte-accounting contract.
+- **Follow-up:** Add reviewed source identity/hash and schema-version fields to these coordinates, then freeze the manifest schema before lifecycle logic. Select buffered versus memory-mapped disk input only after representative file-size and throughput evidence; this milestone does not claim disk streaming.
+
+---
+
 ## 2026-10-17 - Prove exact source-record framing and byte accounting
 
 - **Changed:** Added a zero-copy Rust iterator for fixed-width LF-delimited source records, with zero-based record indices, byte offsets, exact payload slices, explicit framing errors, and lossless preservation of every unconsumed byte after a failure.
