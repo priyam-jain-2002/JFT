@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-17 - Prove the Trim width guard across truncation and oversize cases
+
+- **Changed:** Added exhaustive tested-length sweeps around both current Trim payload widths, covering empty, truncated, delimiter-sized, and up-to-32-byte-oversized inputs.
+- **Why:** Fixed-field indexing is safe only if width validation always runs first. A single short-input indexing path could panic and lose ingestion evidence.
+- **Validation:** Exercised 100 invalid Order lengths and 114 invalid Trade lengths (214 total). Every case returns the exact expected/actual widths, has no field attribution, and retains every input byte. All 38 Rust tests pass; formatting, compilation, and strict Clippy pass.
+- **Related:** DEC-2026-004, DEC-2026-008; Phase 1 parser/quarantine invariants.
+- **Follow-up:** Retain these guards when product/date layout dispatch is added; unknown layouts must fail before any field access.
+
+---
+
 ## 2026-10-17 - Present the manifest/schema contract for owner decision
 
 - **Changed:** Added proposed DEC-2026-009 with a concrete manifest identity, schema compatibility policy, minimal dependency set, event-key tuple, unified canonical Trim/Full recommendation, alternatives, pre-mortem, and activation tests; cross-linked the governing Phase 1 schema section.

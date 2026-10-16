@@ -284,6 +284,48 @@ fn every_single_byte_trade_mutation_preserves_the_exact_input() {
 }
 
 #[test]
+fn every_tested_wrong_order_width_is_losslessly_quarantined_before_field_access() {
+    for actual in 0..=TRIM_ORDER_RECORD_LEN + 32 {
+        if actual == TRIM_ORDER_RECORD_LEN {
+            continue;
+        }
+
+        let raw = vec![b'X'; actual];
+        let error = parse_trim_order(&raw).expect_err("wrong width must fail");
+        assert_eq!(error.raw, raw);
+        assert_eq!(error.field, None);
+        assert_eq!(
+            error.reason,
+            QuarantineReason::WrongRecordLength {
+                expected: TRIM_ORDER_RECORD_LEN,
+                actual,
+            }
+        );
+    }
+}
+
+#[test]
+fn every_tested_wrong_trade_width_is_losslessly_quarantined_before_field_access() {
+    for actual in 0..=TRIM_TRADE_RECORD_LEN + 32 {
+        if actual == TRIM_TRADE_RECORD_LEN {
+            continue;
+        }
+
+        let raw = vec![b'X'; actual];
+        let error = parse_trim_trade(&raw).expect_err("wrong width must fail");
+        assert_eq!(error.raw, raw);
+        assert_eq!(error.field, None);
+        assert_eq!(
+            error.reason,
+            QuarantineReason::WrongRecordLength {
+                expected: TRIM_TRADE_RECORD_LEN,
+                actual,
+            }
+        );
+    }
+}
+
+#[test]
 fn rejects_a_record_that_still_contains_the_lf_delimiter() {
     let error = parse_trim_order(ORDER_FIXTURE).expect_err("parser accepts payload only");
 
