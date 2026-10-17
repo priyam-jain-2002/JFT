@@ -4,9 +4,13 @@ use std::collections::BTreeMap;
 
 use crate::book::{BookProjectionError, OrderBookProjection};
 use crate::events::{OrderEvent, Side, TradeEvent};
-use crate::framing::FramingError;
+use crate::framing::{FramingError, FramingProfile, profile_fixed_width_lf};
 use crate::jiffy::ExchangeJiffy;
-use crate::layouts::TRIM_ORDER_RECORD_LEN;
+use crate::layouts::{
+    CURRENT_FULL_ORDER_RECORD_LEN, CURRENT_FULL_TRADE_RECORD_LEN, FullOrderLayoutVersion,
+    FullTradeLayoutVersion, LEGACY_FULL_ORDER_RECORD_LEN, LEGACY_FULL_TRADE_100_RECORD_LEN,
+    LEGACY_FULL_TRADE_101_RECORD_LEN, SourceDate, TRIM_ORDER_RECORD_LEN, full_cm_layout_for_date,
+};
 use crate::lifecycle::{LifecycleAnomaly, LifecycleTransition, OrderKey, OrderLifecycle};
 use crate::manifest::{CmPairedStreamSet, CmProduct, CmRecordKind};
 use crate::parser::{LocatedParse, parse_trim_order_source, parse_trim_trade_source};
@@ -361,6 +365,33 @@ pub fn profile_trim_trade_jiffies(source: &[u8]) -> JiffySourceProfile<'_> {
     profile_jiffies(parse_trim_trade_source(source), |event| {
         event.exchange_jiffy
     })
+}
+
+#[must_use]
+pub fn profile_full_order_framing(source: &[u8], source_date: SourceDate) -> FramingProfile<'_> {
+    match full_cm_layout_for_date(source_date).order {
+        FullOrderLayoutVersion::Bytes87 => {
+            profile_fixed_width_lf::<LEGACY_FULL_ORDER_RECORD_LEN>(source)
+        }
+        FullOrderLayoutVersion::Bytes91 => {
+            profile_fixed_width_lf::<CURRENT_FULL_ORDER_RECORD_LEN>(source)
+        }
+    }
+}
+
+#[must_use]
+pub fn profile_full_trade_framing(source: &[u8], source_date: SourceDate) -> FramingProfile<'_> {
+    match full_cm_layout_for_date(source_date).trade {
+        FullTradeLayoutVersion::Bytes100 => {
+            profile_fixed_width_lf::<LEGACY_FULL_TRADE_100_RECORD_LEN>(source)
+        }
+        FullTradeLayoutVersion::Bytes101 => {
+            profile_fixed_width_lf::<LEGACY_FULL_TRADE_101_RECORD_LEN>(source)
+        }
+        FullTradeLayoutVersion::Bytes103 => {
+            profile_fixed_width_lf::<CURRENT_FULL_TRADE_RECORD_LEN>(source)
+        }
+    }
 }
 
 pub fn profile_trim_order_stream_set<'a>(

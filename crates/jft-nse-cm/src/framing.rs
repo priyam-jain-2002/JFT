@@ -31,6 +31,39 @@ pub struct FramingError<'a> {
     pub reason: FramingErrorReason,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FramingProfile<'a> {
+    pub payload_width: usize,
+    pub source_bytes: usize,
+    pub framed_records: usize,
+    pub framing_error: Option<FramingError<'a>>,
+}
+
+impl FramingProfile<'_> {
+    #[must_use]
+    pub fn framed_bytes(&self) -> Option<usize> {
+        self.framed_records
+            .checked_mul(self.payload_width.checked_add(1)?)
+    }
+
+    #[must_use]
+    pub fn bytes_reconcile(&self) -> bool {
+        let residue = self
+            .framing_error
+            .map_or(0, |error| error.unconsumed_raw.len());
+        self.framed_bytes()
+            .and_then(|framed| framed.checked_add(residue))
+            == Some(self.source_bytes)
+    }
+
+    #[must_use]
+    pub fn is_complete(&self) -> bool {
+        self.framing_error.is_none()
+            && self.framed_bytes() == Some(self.source_bytes)
+            && self.bytes_reconcile()
+    }
+}
+
 /// A zero-copy iterator over exact-width payloads followed by one LF byte.
 ///
 /// The iterator stops after the first error because resynchronizing after a
@@ -107,4 +140,26 @@ impl<'a, const N: usize> Iterator for FixedWidthLfRecords<'a, N> {
         self.next_byte_offset += framed_len;
         Some(Ok(framed))
     }
+}
+
+#[must_use]
+pub fn profile_fixed_width_lf<const N: usize>(source: &[u8]) -> FramingProfile<'_> {
+    let mut profile = FramingProfile {
+        payload_width: N,
+        source_bytes: source.len(),
+        framed_records: 0,
+        framing_error: None,
+    };
+
+    for outcome in FixedWidthLfRecords::<N>::new(source) {
+        match outcome {
+            Ok(_) => profile.framed_records += 1,
+            Err(error) => {
+                profile.framing_error = Some(error);
+                break;
+            }
+        }
+    }
+
+    profile
 }

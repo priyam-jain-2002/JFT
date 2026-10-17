@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-18 - Structurally profile every Full layout era
+
+- **Changed:** Added streaming structural profiles that count exact-width LF-framed records, source bytes, and borrowed failure residue; expose checked byte reconciliation/completeness; and dispatch Full Orders and Trades to 87/91 and 100/101/103-byte widths by validated source date. No Full field semantics are decoded.
+- **Why:** The supplied public legacy CM sample can provide real framing evidence even though it cannot validate current Trim, triggers, ordering, or lifecycle semantics. Separating structural evidence from semantic claims lets us use it without overstating what it proves.
+- **Validation:** Four default tests prove current fixtures, every historical date/width transition including the one-day exception and rollback, exact partial-tail evidence, repeatability, and full byte accounting. One explicitly invoked local-data test consumed all 300,000 public legacy Order records and all 300,000 Trade records with zero residue. All 125 default Rust tests pass; the external-data test also passes independently.
+- **Related:** DEC-2026-008; Phase 0 sample qualification; Phase 1 layout/framing gates.
+- **Follow-up:** Keep Full semantic parsing blocked on representative files and clarification of signed fields and Trigger Price rules; acquire current paired data and triggers before any Trim/ordering acceptance claim.
+
+---
+
 ## 2026-10-18 - Bind jiffy profiles to paired stream sets
 
 - **Changed:** Added Trim Order and Trade stream-set profiling bound to an already discovered paired delivery. The profiler requires exact member coverage before reading records, normalizes source input to member order, preserves every per-source profile, reconciles counts per member, and reports every pair whose observed raw-jiffy ranges overlap.
