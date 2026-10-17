@@ -3,7 +3,10 @@ use jft_nse_cm::framing::FramingErrorReason;
 use jft_nse_cm::jiffy::ExchangeJiffy;
 use jft_nse_cm::layouts::TRIM_ORDER_RECORD_LEN;
 use jft_nse_cm::lifecycle::LifecycleAnomaly;
-use jft_nse_cm::reconcile::{SourceCoordinate, TrimOrderReplay, replay_trim_order_source};
+use jft_nse_cm::reconcile::{
+    SourceCoordinate, TrimOrderReplay, replay_trim_order_source,
+    replay_trim_order_source_with_observer,
+};
 
 const ENTRY_FIXTURE: &[u8] =
     include_bytes!("../../../tests/fixtures/nse_cm/synthetic_nonlicensed/trim_order_entry.dat");
@@ -188,4 +191,83 @@ fn repeated_replay_has_identical_state_evidence_and_active_provenance() {
     );
     let projection = first.book_projection().expect("book projection");
     assert_eq!(projection.len(), 1);
+}
+
+#[test]
+fn transition_observer_receives_every_success_in_exact_source_order() {
+    let source = [ENTRY_FIXTURE, MODIFY_FIXTURE, CANCEL_FIXTURE].concat();
+    let mut transitions = Vec::new();
+    let replay = replay_trim_order_source_with_observer(&source, |transition| {
+        transitions.push(transition);
+    });
+
+    assert_eq!(transitions.len(), 3);
+    for (index, transition) in transitions.iter().enumerate() {
+        assert_eq!(transition.coordinate.record_index, index);
+        assert_eq!(
+            transition.coordinate.byte_offset,
+            index * (TRIM_ORDER_RECORD_LEN + 1)
+        );
+        assert_eq!(transition.raw.len(), TRIM_ORDER_RECORD_LEN);
+    }
+    assert!(matches!(
+        transitions[0].transition,
+        jft_nse_cm::lifecycle::LifecycleTransition::Entered { .. }
+    ));
+    assert!(matches!(
+        transitions[1].transition,
+        jft_nse_cm::lifecycle::LifecycleTransition::Modified { .. }
+    ));
+    assert!(matches!(
+        transitions[2].transition,
+        jft_nse_cm::lifecycle::LifecycleTransition::Cancelled { .. }
+    ));
+    assert_eq!(replay.applied_events, transitions.len());
+}
+
+#[test]
+fn transition_observer_excludes_parser_and_lifecycle_failures() {
+    let mut invalid = ENTRY_FIXTURE.to_vec();
+    invalid[37] = b'2';
+    let source = [
+        invalid.as_slice(),
+        ENTRY_FIXTURE,
+        ENTRY_FIXTURE,
+        MODIFY_FIXTURE,
+    ]
+    .concat();
+    let mut transitions = Vec::new();
+    let replay = replay_trim_order_source_with_observer(&source, |transition| {
+        transitions.push(transition);
+    });
+
+    assert_eq!(replay.quarantines.len(), 1);
+    assert_eq!(replay.lifecycle_anomalies.len(), 1);
+    assert_eq!(replay.applied_events, 2);
+    assert_eq!(transitions.len(), 2);
+    assert_eq!(transitions[0].coordinate.record_index, 1);
+    assert_eq!(transitions[1].coordinate.record_index, 3);
+}
+
+#[test]
+fn observed_raw_bytes_and_events_are_the_exact_parsed_records() {
+    let mut observed = Vec::new();
+    let replay = replay_trim_order_source_with_observer(ENTRY_FIXTURE, |transition| {
+        observed.push(transition);
+    });
+
+    assert_eq!(replay.applied_events, 1);
+    assert_eq!(observed.len(), 1);
+    assert_eq!(observed[0].raw, ENTRY_FIXTURE[..TRIM_ORDER_RECORD_LEN]);
+    assert_eq!(observed[0].event.activity, OrderActivity::Entry);
+    assert_eq!(observed[0].event.order_number, 1);
+}
+
+#[test]
+fn observing_transitions_does_not_change_the_replay_report() {
+    let source = [ENTRY_FIXTURE, MODIFY_FIXTURE].concat();
+    let default = replay_trim_order_source(&source);
+    let observed = replay_trim_order_source_with_observer(&source, |_| {});
+
+    assert_eq!(default, observed);
 }

@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-17 - Stream exact successful lifecycle transitions
+
+- **Changed:** Added an allocation-free replay observer that receives every successful Trim Order lifecycle transition with exact source coordinate, parsed event, complete 68-byte raw record, and entered/modified/cancelled state delta. Default replay delegates to the same path with a no-op observer.
+- **Why:** Successful transitions need an auditable streaming boundary without forcing replay to retain the entire accepted source. Durable/fallible serialization remains a later canonical-contract concern.
+- **Validation:** Four new tests prove exact transition order and coordinates, exact event/raw preservation, exclusion of parser/lifecycle failures, applied-count agreement, and identical replay reports with or without observation. All 112 Rust tests pass.
+- **Related:** DEC-2026-008; Phase 1 single-source replay contract.
+- **Follow-up:** Connect this observer to versioned, fallible canonical serialization only after DEC-2026-009 is approved; do not treat the observer as a committed wire schema.
+
+---
+
 ## 2026-10-17 - Add lossless Order and Trade jiffy profilers
 
 - **Changed:** Added shared streaming profiling for Trim Order and Trade sources: parsed observation count, raw-jiffy min/max, consecutive parsed ties, maximum equal-jiffy run, every regression with both exact source coordinates/jiffies, interval overlap, quarantines, and borrowed framing residue.

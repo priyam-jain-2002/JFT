@@ -44,6 +44,14 @@ pub struct LocatedLifecycleAnomaly {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LocatedLifecycleTransition {
+    pub coordinate: SourceCoordinate,
+    pub event: OrderEvent,
+    pub raw: [u8; TRIM_ORDER_RECORD_LEN],
+    pub transition: LifecycleTransition,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TrimOrderReplay<'a> {
     pub lifecycle: OrderLifecycle,
     pub active_provenance: BTreeMap<OrderKey, ActiveOrderProvenance>,
@@ -143,6 +151,14 @@ impl TrimOrderReplay<'_> {
 
 #[must_use]
 pub fn replay_trim_order_source(source: &[u8]) -> TrimOrderReplay<'_> {
+    replay_trim_order_source_with_observer(source, |_| {})
+}
+
+#[must_use]
+pub fn replay_trim_order_source_with_observer(
+    source: &[u8],
+    mut observe: impl FnMut(LocatedLifecycleTransition),
+) -> TrimOrderReplay<'_> {
     let mut replay = TrimOrderReplay {
         lifecycle: OrderLifecycle::new(),
         active_provenance: BTreeMap::new(),
@@ -192,6 +208,12 @@ pub fn replay_trim_order_source(source: &[u8]) -> TrimOrderReplay<'_> {
                     coordinate,
                     transition,
                 );
+                observe(LocatedLifecycleTransition {
+                    coordinate,
+                    event: parsed.event,
+                    raw: parsed.raw,
+                    transition,
+                });
             }
             Err(anomaly) => replay.lifecycle_anomalies.push(LocatedLifecycleAnomaly {
                 coordinate,
