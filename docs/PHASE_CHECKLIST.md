@@ -543,7 +543,8 @@ Orders + Trades -> integrity -> parser -> raw-event validation -> jiffy validati
 - [ ] Profile per-stream monotonicity, equal-jiffy groups, overlap, and trade-reference timing before merge policy.
 - [x] Implement a deterministic order-only entry/modify/cancel reducer: active-state replacement/removal, duplicate entry, unknown modify/cancel, and regressing-jiffy anomalies are explicit and never mutate state. Same-jiffy events follow caller-supplied order; cross-stream ordering, provenance orchestration, and trade-driven quantity semantics remain separate gates.
 - [x] Reconstruct deterministic active-order state and a pure price-level bid/ask projection by raw instrument/session; aggregate exact order count/quantity with checked arithmetic, expose exact BBO, and preserve locked/crossed states rather than filtering them.
-- [ ] Orchestrate incremental replay with source provenance; hash checkpoints/final order and price-level state after the canonical identity decision is active.
+- [x] Stream one caller-ordered Trim Order source through framing, parsing, lifecycle reduction, and final price projection; retain active entry/last-mutation coordinates plus exact raw bytes/coordinates for parser and lifecycle failures, stop with a borrowed framing tail, and reconcile every framed/parsed/applied count.
+- [ ] Add complete successful-transition output, cross-stream merge/replay, and checkpoint/final-state hashes after ordering is evidenced and the canonical identity decision is active.
 - [ ] Join trades to both order IDs and test competing execution-decrement interpretations.
 - [ ] Separate `PO`, `RM`, `CA`; define transitions, halts, special sessions, and daily reset.
 - [ ] Reconcile counts, volume/value, residue, and independent summaries where lawful.

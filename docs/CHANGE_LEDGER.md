@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-17 - Replay one Trim Order source with exact failure provenance
+
+- **Changed:** Added streaming replay for one caller-ordered Trim Order byte source. It reduces parsed events into lifecycle state, tracks entry/last-mutation coordinates for active orders, retains exact event/raw/coordinate evidence for parser and lifecycle failures, preserves a zero-copy unconsumed framing tail, exposes final price projection, and checks count reconciliation.
+- **Why:** Parser, lifecycle, and book components need an evidence-preserving integration boundary before any cross-stream merge or hashing policy is selected. Retaining only failures and active provenance avoids a whole-source success vector while keeping every rejected byte auditable.
+- **Validation:** Seven new tests prove complete entry→modify→cancel replay, quarantine continuation, duplicate/unknown/regressing lifecycle evidence, zero-copy framing stop, repeat determinism, active provenance, final book projection, and `framed = parsed + quarantined` / `parsed = applied + anomaly` reconciliation. All 95 Rust tests pass; formatting, compilation, strict Clippy, and diff checks pass.
+- **Related:** DEC-2026-008; Phase 1 single-source replay contract.
+- **Follow-up:** Define a streaming successful-transition sink and cross-stream merge only after ordering evidence; add stable checkpoint serialization/hashes only after DEC-2026-009 is approved.
+
+---
+
 ## 2026-10-17 - Project active orders into deterministic price levels
 
 - **Changed:** Added a pure Rust projection from active lifecycle state into deterministic per-session/raw-instrument bid and ask maps. Levels aggregate checked `u64` order counts and quantities, expose exact best prices, retain locked/crossed states, and return typed overflow evidence instead of wrapping.
