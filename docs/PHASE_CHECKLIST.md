@@ -166,6 +166,8 @@ The supplied `Download Sample Files for CM (.zip)_0.zip` contains seven nested s
 
 The Index, Snapshot, and Trades payloads also use `.gz` names while containing plain ASCII rather than gzip streams. This reinforces the requirement to identify payloads from magic bytes/content and to quarantine extension/content mismatches instead of assuming decompression rules from names.
 
+**DESIGN DECISION:** Rust now classifies payload evidence as empty, gzip, ZIP, plain ASCII text, or unknown binary from content alone. An opt-in test reproduces all five observed `.gz` suffix/content mismatches in the supplied package. This is signature detection only; decompression and routing remain separate gates.
+
 **DESIGN DECISION:** Keep this package in a separate `legacy_cm_eod` data contract if it is later ingested. Never route it through the v1.19 Order/Trade parser or use its snapshots to claim exact queue history.
 
 **UNRESOLVED / REQUIRES VALIDATION:** The index, snapshot, and trade samples use placeholder filenames and appear synthetic or excerpted. Their dates, completeness, provenance, and suitability for quantitative validation are not established. They cannot satisfy the representative-day acquisition gate.
@@ -536,6 +538,7 @@ Orders + Trades -> integrity -> parser -> raw-event validation -> jiffy validati
 - [x] Partition an arbitrary filename inventory into deterministic date/product/kind deliveries; retain every rejected filename and independent per-delivery outcome so one invalid group cannot hide valid groups. Prove reversed input order produces identical evidence.
 - [x] Add non-licensed synthetic current Full Order/Trade fixtures and assert the exact bytes at every documented field boundary without claiming Full semantic validation.
 - [x] Inventory all current synthetic fixture sizes and complete-file SHA-256 digests (including LF), with an explicit non-NSE/non-representative provenance warning.
+- [x] Detect empty, gzip, ZIP, plain ASCII, and unknown binary payload signatures from content rather than suffix; prove against synthetic magic/truncation cases and all five supplied legacy `.gz` suffix/content mismatches. Do not decompress or route from extension alone.
 - [ ] Freeze compressed inputs; verify trigger MD5/size, compute SHA-256, write manifest.
 - [ ] Discover all parts/streams rather than hard-code a count; reject missing/duplicate parts.
 - [ ] Implement date/version-aware schemas for Trim 68/82 and required Full variants.

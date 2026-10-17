@@ -2,6 +2,39 @@
 
 use crate::layouts::{SourceDate, SourceDateError};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PayloadSignature {
+    Empty,
+    Gzip,
+    Zip,
+    AsciiText,
+    UnknownBinary,
+}
+
+#[must_use]
+pub fn detect_payload_signature(payload: &[u8]) -> PayloadSignature {
+    if payload.is_empty() {
+        return PayloadSignature::Empty;
+    }
+    if payload.starts_with(&[0x1f, 0x8b]) {
+        return PayloadSignature::Gzip;
+    }
+    if payload.starts_with(b"PK\x03\x04")
+        || payload.starts_with(b"PK\x05\x06")
+        || payload.starts_with(b"PK\x07\x08")
+    {
+        return PayloadSignature::Zip;
+    }
+    if payload.iter().copied().all(is_ascii_text_byte) {
+        return PayloadSignature::AsciiText;
+    }
+    PayloadSignature::UnknownBinary
+}
+
+const fn is_ascii_text_byte(byte: u8) -> bool {
+    matches!(byte, b'\t' | b'\n' | b'\r' | 0x20..=0x7e)
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CmFilePrefix {
     Cm,

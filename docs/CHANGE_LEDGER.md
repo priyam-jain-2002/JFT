@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-18 - Detect payload signatures instead of trusting suffixes
+
+- **Changed:** Added dependency-free content classification for empty, gzip, standard ZIP starts, plain ASCII text, and unknown binary payloads. The classifier accepts bytes only and therefore cannot silently infer compression from a filename.
+- **Why:** The supplied legacy CM package contains `.gz` files that are actually plain text or ZIP archives. Extension-driven decompression would fail unpredictably and could route the wrong product into the wrong parser.
+- **Validation:** Five default tests prove empty, gzip, three ZIP signatures, permitted ASCII controls, unknown binary, and truncated-magic behavior. The opt-in package test classifies Index/Snapshot/Trades as ASCII and Masters/Circulars as ZIP despite all five names ending in `.gz`. All 133 default Rust tests pass; the external-data test passes independently.
+- **Related:** Phase 0 legacy-product qualification; Phase 1 source-integrity gate.
+- **Follow-up:** Add explicit suffix/signature mismatch policy and decompression only when real delivery packaging is available; never route the legacy EOD package through the v1.19 parser.
+
+---
+
 ## 2026-10-18 - Profile Full field byte domains without decoding
 
 - **Changed:** Added checked per-field byte histograms over exact Full layout slices. Profiles expose observed bytes/counts and digit-only evidence, reject an out-of-bounds field map before reading records, count only complete frames, and retain byte-reconciled framing residue.
