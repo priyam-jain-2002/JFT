@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-17 - Add lossless Order and Trade jiffy profilers
+
+- **Changed:** Added shared streaming profiling for Trim Order and Trade sources: parsed observation count, raw-jiffy min/max, consecutive parsed ties, maximum equal-jiffy run, every regression with both exact source coordinates/jiffies, interval overlap, quarantines, and borrowed framing residue.
+- **Why:** A cross-stream merge policy must be selected from measured monotonicity, ties, overlap, and reference timing—not from file naming or synthetic intuition. The profiler creates that evidence boundary without choosing an ordering.
+- **Validation:** Seven new tests prove empty/increasing profiles, equal-jiffy runs, exact regression coordinates, quarantine exclusion with count reconciliation, framing-stop evidence, Order/Trade range overlap, and repeat determinism. All 108 Rust tests pass.
+- **Related:** DEC-2026-008; Phase 1 ordering-evidence gate.
+- **Follow-up:** Run these profiles over every stream in representative paired current deliveries; synthetic results validate the profiler only and make no claim about real NSE ordering.
+
+---
+
 ## 2026-10-17 - Reconcile both Trim trade references to Order entries
 
 - **Changed:** Retained the first successful entry side/coordinate for every replayed order key and added pure buy/sell trade-reference reconciliation against that Order-source evidence. Each side independently returns exact entry match, entry-side mismatch, or missing identity.

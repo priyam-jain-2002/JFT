@@ -5,9 +5,10 @@ use std::collections::BTreeMap;
 use crate::book::{BookProjectionError, OrderBookProjection};
 use crate::events::{OrderEvent, Side, TradeEvent};
 use crate::framing::FramingError;
+use crate::jiffy::ExchangeJiffy;
 use crate::layouts::TRIM_ORDER_RECORD_LEN;
 use crate::lifecycle::{LifecycleAnomaly, LifecycleTransition, OrderKey, OrderLifecycle};
-use crate::parser::parse_trim_order_source;
+use crate::parser::{LocatedParse, parse_trim_order_source, parse_trim_trade_source};
 use crate::quarantine::QuarantinedRecord;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -76,6 +77,53 @@ pub enum OrderSourceReference {
 pub struct TradeOrderSourceReferences {
     pub buy: OrderSourceReference,
     pub sell: OrderSourceReference,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct JiffyRegression {
+    pub previous_coordinate: SourceCoordinate,
+    pub previous_jiffy: ExchangeJiffy,
+    pub current_coordinate: SourceCoordinate,
+    pub current_jiffy: ExchangeJiffy,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct JiffySequenceProfile {
+    pub observation_count: usize,
+    pub minimum: Option<ExchangeJiffy>,
+    pub maximum: Option<ExchangeJiffy>,
+    pub equal_consecutive_observations: usize,
+    pub largest_equal_run: usize,
+    pub regressions: Vec<JiffyRegression>,
+}
+
+impl JiffySequenceProfile {
+    #[must_use]
+    pub fn range_overlaps(&self, other: &Self) -> bool {
+        match (self.minimum, self.maximum, other.minimum, other.maximum) {
+            (Some(left_min), Some(left_max), Some(right_min), Some(right_max)) => {
+                left_min <= right_max && right_min <= left_max
+            }
+            _ => false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JiffySourceProfile<'a> {
+    pub sequence: JiffySequenceProfile,
+    pub framed_records: usize,
+    pub parsed_records: usize,
+    pub quarantines: Vec<LocatedQuarantine>,
+    pub framing_error: Option<FramingError<'a>>,
+}
+
+impl JiffySourceProfile<'_> {
+    #[must_use]
+    pub fn counts_reconcile(&self) -> bool {
+        self.parsed_records.checked_add(self.quarantines.len()) == Some(self.framed_records)
+            && self.sequence.observation_count == self.parsed_records
+    }
 }
 
 impl TrimOrderReplay<'_> {
@@ -228,4 +276,97 @@ fn reconcile_order_source_reference(
         },
         None => OrderSourceReference::Missing { key, expected_side },
     }
+}
+
+#[must_use]
+pub fn profile_trim_order_jiffies(source: &[u8]) -> JiffySourceProfile<'_> {
+    profile_jiffies(parse_trim_order_source(source), |event| {
+        event.exchange_jiffy
+    })
+}
+
+#[must_use]
+pub fn profile_trim_trade_jiffies(source: &[u8]) -> JiffySourceProfile<'_> {
+    profile_jiffies(parse_trim_trade_source(source), |event| {
+        event.exchange_jiffy
+    })
+}
+
+fn profile_jiffies<'a, T, const N: usize>(
+    records: impl Iterator<Item = Result<LocatedParse<T, N>, FramingError<'a>>>,
+    exchange_jiffy: impl Fn(&T) -> ExchangeJiffy,
+) -> JiffySourceProfile<'a> {
+    let mut profile = JiffySourceProfile {
+        sequence: JiffySequenceProfile::default(),
+        framed_records: 0,
+        parsed_records: 0,
+        quarantines: Vec::new(),
+        framing_error: None,
+    };
+    let mut previous: Option<(SourceCoordinate, ExchangeJiffy)> = None;
+    let mut current_equal_run = 0_usize;
+
+    for outcome in records {
+        let located = match outcome {
+            Ok(located) => located,
+            Err(error) => {
+                profile.framing_error = Some(error);
+                break;
+            }
+        };
+        profile.framed_records += 1;
+        let coordinate = SourceCoordinate {
+            record_index: located.record_index,
+            byte_offset: located.byte_offset,
+        };
+        let parsed = match located.result {
+            Ok(parsed) => parsed,
+            Err(quarantined) => {
+                profile.quarantines.push(LocatedQuarantine {
+                    coordinate,
+                    quarantined,
+                });
+                continue;
+            }
+        };
+        profile.parsed_records += 1;
+        let current = exchange_jiffy(&parsed.event);
+        profile.sequence.observation_count += 1;
+        profile.sequence.minimum = Some(
+            profile
+                .sequence
+                .minimum
+                .map_or(current, |minimum| minimum.min(current)),
+        );
+        profile.sequence.maximum = Some(
+            profile
+                .sequence
+                .maximum
+                .map_or(current, |maximum| maximum.max(current)),
+        );
+
+        if let Some((previous_coordinate, previous_jiffy)) = previous {
+            if current == previous_jiffy {
+                profile.sequence.equal_consecutive_observations += 1;
+                current_equal_run += 1;
+            } else {
+                current_equal_run = 1;
+            }
+            if current < previous_jiffy {
+                profile.sequence.regressions.push(JiffyRegression {
+                    previous_coordinate,
+                    previous_jiffy,
+                    current_coordinate: coordinate,
+                    current_jiffy: current,
+                });
+            }
+        } else {
+            current_equal_run = 1;
+        }
+        profile.sequence.largest_equal_run =
+            profile.sequence.largest_equal_run.max(current_equal_run);
+        previous = Some((coordinate, current));
+    }
+
+    profile
 }
