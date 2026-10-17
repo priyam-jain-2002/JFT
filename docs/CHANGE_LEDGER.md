@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-17 - Discover homogeneous CM stream sets without a fixed count
+
+- **Changed:** Added typed CM file-group keys and set-level discovery for unsplit or contiguous split streams, retaining prefix/product/date/kind/data-trigger identity.
+- **Why:** NSE states that stream count may grow. Hard-coding a count would silently drop future parts; merging unlike metadata or split modes would hide delivery defects.
+- **Validation:** Six new tests prove arbitrary input order becomes `[1..N]`, the first gap is rejected, split and unsplit duplicates are rejected, mixed split mode and group metadata are rejected, a singleton unsplit file is accepted, and empty discovery fails. All 57 Rust tests pass; formatting, compilation, and strict Clippy pass.
+- **Related:** NSE Historical Order & Trade Data v1.19 sections 2.1.1, 3.1.1, and 5.3; DEC-2026-008; Phase 1 input-discovery contract.
+- **Follow-up:** Pair homogeneous data and trigger sets by explicit group identity, report prefix conflicts rather than normalizing them, and require matching stream members before integrity checks.
+
+---
+
 ## 2026-10-17 - Decode CM source filenames without resolving the prefix conflict
 
 - **Changed:** Added strict decoding for CM Full/Trim Order/Trade data and `.trg` names, split and unsplit forms, validated DDMMYYYY dates, and positive two-digit stream identifiers. `CM` and `CASH` remain distinct enum values.

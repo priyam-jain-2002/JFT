@@ -40,6 +40,55 @@ pub enum CmFileNameError {
     InvalidStream,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CmFileGroupKey {
+    pub prefix: CmFilePrefix,
+    pub product: CmProduct,
+    pub record_kind: CmRecordKind,
+    pub source_date: SourceDate,
+    pub is_trigger: bool,
+}
+
+impl From<CmSourceFileName> for CmFileGroupKey {
+    fn from(file: CmSourceFileName) -> Self {
+        Self {
+            prefix: file.prefix,
+            product: file.product,
+            record_kind: file.record_kind,
+            source_date: file.source_date,
+            is_trigger: file.is_trigger,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CmStreamForm {
+    Unsplit,
+    Split { streams: Vec<u8> },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CmStreamSet {
+    pub key: CmFileGroupKey,
+    pub form: CmStreamForm,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CmStreamSetError {
+    Empty,
+    MixedGroup {
+        expected: CmFileGroupKey,
+        actual: CmFileGroupKey,
+    },
+    MixedSplitMode,
+    DuplicateStream {
+        stream: Option<u8>,
+    },
+    MissingStream {
+        stream: u8,
+    },
+}
+
 pub fn parse_cm_source_file_name(name: &str) -> Result<CmSourceFileName, CmFileNameError> {
     let (data_name, is_trigger) = match name.strip_suffix(".trg") {
         Some(data_name) => (data_name, true),
@@ -79,6 +128,62 @@ pub fn parse_cm_source_file_name(name: &str) -> Result<CmSourceFileName, CmFileN
         source_date: parse_ddmmyyyy(date)?,
         stream: stream.map(parse_stream).transpose()?,
         is_trigger,
+    })
+}
+
+pub fn discover_cm_stream_set(files: &[CmSourceFileName]) -> Result<CmStreamSet, CmStreamSetError> {
+    let first = *files.first().ok_or(CmStreamSetError::Empty)?;
+    let key = CmFileGroupKey::from(first);
+
+    for file in files.iter().copied().skip(1) {
+        let actual = CmFileGroupKey::from(file);
+        if actual != key {
+            return Err(CmStreamSetError::MixedGroup {
+                expected: key,
+                actual,
+            });
+        }
+    }
+
+    let has_unsplit = files.iter().any(|file| file.stream.is_none());
+    let has_split = files.iter().any(|file| file.stream.is_some());
+    if has_unsplit && has_split {
+        return Err(CmStreamSetError::MixedSplitMode);
+    }
+    if has_unsplit {
+        if files.len() != 1 {
+            return Err(CmStreamSetError::DuplicateStream { stream: None });
+        }
+        return Ok(CmStreamSet {
+            key,
+            form: CmStreamForm::Unsplit,
+        });
+    }
+
+    let mut seen = [false; 100];
+    let mut maximum = 0_u8;
+    for file in files {
+        let stream = file.stream.expect("split mode was established");
+        if seen[usize::from(stream)] {
+            return Err(CmStreamSetError::DuplicateStream {
+                stream: Some(stream),
+            });
+        }
+        seen[usize::from(stream)] = true;
+        maximum = maximum.max(stream);
+    }
+
+    for stream in 1..=maximum {
+        if !seen[usize::from(stream)] {
+            return Err(CmStreamSetError::MissingStream { stream });
+        }
+    }
+
+    Ok(CmStreamSet {
+        key,
+        form: CmStreamForm::Split {
+            streams: (1..=maximum).collect(),
+        },
     })
 }
 

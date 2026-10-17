@@ -1,8 +1,15 @@
 use jft_nse_cm::layouts::{SourceDate, SourceDateError};
 use jft_nse_cm::manifest::{
-    CmFileNameError, CmFilePrefix, CmProduct, CmRecordKind, CmSourceFileName,
-    parse_cm_source_file_name,
+    CmFileGroupKey, CmFileNameError, CmFilePrefix, CmProduct, CmRecordKind, CmSourceFileName,
+    CmStreamForm, CmStreamSetError, discover_cm_stream_set, parse_cm_source_file_name,
 };
+
+fn parse_all(names: &[&str]) -> Vec<CmSourceFileName> {
+    names
+        .iter()
+        .map(|name| parse_cm_source_file_name(name).expect("valid test name"))
+        .collect()
+}
 
 #[test]
 fn parses_current_trim_data_name_without_collapsing_cm_prefix() {
@@ -102,4 +109,94 @@ fn rejects_unknown_prefix_kind_shape_and_suffix() {
         parse_cm_source_file_name("CM_Orders_16062025_01.dat.gz"),
         Err(CmFileNameError::MissingDataSuffix)
     );
+}
+
+#[test]
+fn discovers_all_streams_in_numeric_order_without_a_fixed_count() {
+    let files = parse_all(&[
+        "CASH_Orders_16062025_03.DAT.gz",
+        "CASH_Orders_16062025_01.DAT.gz",
+        "CASH_Orders_16062025_02.DAT.gz",
+    ]);
+    let discovered = discover_cm_stream_set(&files).expect("complete stream set");
+
+    assert_eq!(
+        discovered.form,
+        CmStreamForm::Split {
+            streams: vec![1, 2, 3]
+        }
+    );
+    assert_eq!(discovered.key.prefix, CmFilePrefix::Cash);
+    assert_eq!(discovered.key.record_kind, CmRecordKind::Orders);
+}
+
+#[test]
+fn rejects_the_first_missing_stream() {
+    let files = parse_all(&[
+        "CASH_Orders_16062025_01.DAT.gz",
+        "CASH_Orders_16062025_03.DAT.gz",
+        "CASH_Orders_16062025_04.DAT.gz",
+    ]);
+
+    assert_eq!(
+        discover_cm_stream_set(&files),
+        Err(CmStreamSetError::MissingStream { stream: 2 })
+    );
+}
+
+#[test]
+fn rejects_duplicate_split_and_unsplit_members() {
+    let duplicate_split = parse_all(&[
+        "CASH_Orders_16062025_01.DAT.gz",
+        "CASH_Orders_16062025_01.DAT.gz",
+    ]);
+    assert_eq!(
+        discover_cm_stream_set(&duplicate_split),
+        Err(CmStreamSetError::DuplicateStream { stream: Some(1) })
+    );
+
+    let duplicate_unsplit = parse_all(&["CM_Trades_30062024.DAT.gz", "CM_Trades_30062024.DAT.gz"]);
+    assert_eq!(
+        discover_cm_stream_set(&duplicate_unsplit),
+        Err(CmStreamSetError::DuplicateStream { stream: None })
+    );
+}
+
+#[test]
+fn rejects_mixed_split_mode_and_mixed_group_metadata() {
+    let mixed_mode = parse_all(&[
+        "CASH_Orders_16062025.DAT.gz",
+        "CASH_Orders_16062025_01.DAT.gz",
+    ]);
+    assert_eq!(
+        discover_cm_stream_set(&mixed_mode),
+        Err(CmStreamSetError::MixedSplitMode)
+    );
+
+    let mixed_group = parse_all(&[
+        "CASH_Orders_16062025_01.DAT.gz",
+        "CASH_Trades_16062025_01.DAT.gz",
+    ]);
+    let expected = CmFileGroupKey::from(mixed_group[0]);
+    let actual = CmFileGroupKey::from(mixed_group[1]);
+    assert_eq!(
+        discover_cm_stream_set(&mixed_group),
+        Err(CmStreamSetError::MixedGroup { expected, actual })
+    );
+}
+
+#[test]
+fn accepts_exactly_one_unsplit_member() {
+    let files = parse_all(&["CM_Trades_30062024.DAT.gz"]);
+    assert_eq!(
+        discover_cm_stream_set(&files)
+            .expect("one unsplit file")
+            .form,
+        CmStreamForm::Unsplit
+    );
+}
+
+#[test]
+fn rejects_an_empty_discovery_input() {
+    assert_eq!(discover_cm_stream_set(&[]), Err(CmStreamSetError::Empty));
 }
