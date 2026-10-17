@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-17 - Reconcile both Trim trade references to Order entries
+
+- **Changed:** Retained the first successful entry side/coordinate for every replayed order key and added pure buy/sell trade-reference reconciliation against that Order-source evidence. Each side independently returns exact entry match, entry-side mismatch, or missing identity.
+- **Why:** Reference coverage can be measured without selecting a cross-stream ordering or execution-decrement model. Calling this source membership—not a temporal match—prevents closed orders or late file ordering from being misrepresented as active at trade time.
+- **Validation:** Six new tests prove exact two-sided coordinate matches, partial match preservation, side-mismatch versus missing classification, strict session/raw-instrument identity, cancelled-order source membership without temporal claims, and repeat determinism. All 101 Rust tests pass; formatting, compilation, strict Clippy, and diff checks pass.
+- **Related:** DEC-2026-008; Phase 1 trade-reference contract.
+- **Follow-up:** Measure per-stream and cross-file timing on representative paired data before selecting a merge policy or evaluating competing quantity-decrement interpretations.
+
+---
+
 ## 2026-10-17 - Replay one Trim Order source with exact failure provenance
 
 - **Changed:** Added streaming replay for one caller-ordered Trim Order byte source. It reduces parsed events into lifecycle state, tracks entry/last-mutation coordinates for active orders, retains exact event/raw/coordinate evidence for parser and lifecycle failures, preserves a zero-copy unconsumed framing tail, exposes final price projection, and checks count reconciliation.

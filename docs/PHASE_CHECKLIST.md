@@ -545,7 +545,8 @@ Orders + Trades -> integrity -> parser -> raw-event validation -> jiffy validati
 - [x] Reconstruct deterministic active-order state and a pure price-level bid/ask projection by raw instrument/session; aggregate exact order count/quantity with checked arithmetic, expose exact BBO, and preserve locked/crossed states rather than filtering them.
 - [x] Stream one caller-ordered Trim Order source through framing, parsing, lifecycle reduction, and final price projection; retain active entry/last-mutation coordinates plus exact raw bytes/coordinates for parser and lifecycle failures, stop with a borrowed framing tail, and reconcile every framed/parsed/applied count.
 - [ ] Add complete successful-transition output, cross-stream merge/replay, and checkpoint/final-state hashes after ordering is evidenced and the canonical identity decision is active.
-- [ ] Join trades to both order IDs and test competing execution-decrement interpretations.
+- [x] Join each Trim trade's buy/sell order IDs to successfully entered orders by exact session/segment/raw symbol/series/order identity; retain entry coordinates and classify each side independently as matched, missing, or entry-side mismatch without claiming temporal validity.
+- [ ] Establish temporal trade-reference timing through an evidenced cross-stream merge, then test no-decrement, direct-decrement, and mixed execution interpretations; source membership alone must not choose quantity semantics.
 - [ ] Separate `PO`, `RM`, `CA`; define transitions, halts, special sessions, and daily reset.
 - [ ] Reconcile counts, volume/value, residue, and independent summaries where lawful.
 - [ ] Compare matched Trim/Full replay, lifecycle matches, state divergence, lost features, storage/runtime.
