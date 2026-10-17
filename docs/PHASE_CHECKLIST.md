@@ -142,6 +142,7 @@ Observed sample diagnostics:
 - jiffies were non-decreasing within each Orders and Trades file and no adjacent equal-jiffy records appeared;
 - all 300,000 trade numbers were unique, while 213,527 distinct order numbers appeared;
 - only 44,520 buy-order references (14.84%) and 45,129 sell-order references (15.04%) matched an order number present in the sample Orders file;
+- every observed byte in the documented legacy Order/Trade numeric positions was an ASCII digit, with no sign byte observed; this is evidence about this public placeholder sample only and does not resolve v1.19's signed-integral ambiguity for current deliveries;
 - there are no `.trg` files, split streams, Trim records, or closing-auction (`CA`) examples; and
 - the data uses literal `b` characters in left-padded symbols, so production padding behavior must be checked against real subscribed bytes rather than inferred from this sample.
 
@@ -527,6 +528,7 @@ Orders + Trades -> integrity -> parser -> raw-event validation -> jiffy validati
 - [x] Encode and exactly test the historical Full 87-byte Order plus 100-byte and 101-byte Trade maps from the documented trade-number and volume/quantity width changes; date dispatch and semantic parsing remain open.
 - [x] Dispatch Full wire layouts from validated source dates across 01 July 2024, the explicit 28 March 2025 exception/rollback, and 16 June 2025; expose Trim only from its documented 18 May 2026 introduction. Never infer the era from record width alone.
 - [x] Structurally profile date-dispatched Full 87/91-byte Order and 100/101/103-byte Trade sources with exact record/source-byte/residue accounting and no semantic field claims. An opt-in local test frames all 600,000 records in the supplied public legacy CM Order/Trade sample with zero residue; the placeholder filenames and absent triggers do not qualify it as a current delivery.
+- [x] Profile exact observed byte counts for every documented Full field without decoding values; reject out-of-bounds layouts before framing and exclude incomplete records while preserving their residue. The opt-in public-sample test proves digit-only bytes in twelve legacy numeric fields and literal-`b` symbol padding, without generalizing either behavior to current data.
 - [x] Strictly decode CM Full/Trim Order/Trade data and trigger filenames, optional two-digit positive streams, and DDMMYYYY dates while retaining `CM` versus `CASH` prefixes as distinct evidence; do not guess which documented prefix production uses.
 - [x] Discover a homogeneous split stream set from observed members without a fixed maximum; sort it and reject empty input, gaps, duplicates, mixed split/unsplit forms, or mixed prefix/product/date/kind/data-trigger metadata.
 - [x] Pair explicit data and trigger stream sets only when role, prefix, product, date, record kind, split mode, and observed members match exactly; report `CM`/`CASH` prefix conflicts rather than aliasing them.

@@ -2,10 +2,14 @@ use std::fs;
 
 use jft_nse_cm::framing::{FramingErrorReason, profile_fixed_width_lf};
 use jft_nse_cm::layouts::{
-    CURRENT_FULL_ORDER_RECORD_LEN, CURRENT_FULL_TRADE_RECORD_LEN, LEGACY_FULL_ORDER_RECORD_LEN,
+    CURRENT_FULL_ORDER_RECORD_LEN, CURRENT_FULL_TRADE_RECORD_LEN, FieldLayout,
+    FullOrderLayoutVersion, FullTradeLayoutVersion, LEGACY_FULL_ORDER_RECORD_LEN,
     LEGACY_FULL_TRADE_100_RECORD_LEN, LEGACY_FULL_TRADE_101_RECORD_LEN, SourceDate,
 };
-use jft_nse_cm::reconcile::{profile_full_order_framing, profile_full_trade_framing};
+use jft_nse_cm::reconcile::{
+    FieldByteProfileError, profile_fixed_width_field_bytes, profile_full_order_field_bytes,
+    profile_full_order_framing, profile_full_trade_field_bytes, profile_full_trade_framing,
+};
 
 const CURRENT_ORDER_FIXTURE: &[u8] =
     include_bytes!("../../../tests/fixtures/nse_cm/synthetic_nonlicensed/full_order_entry.dat");
@@ -87,6 +91,73 @@ fn structural_profile_is_repeatable_and_counts_every_source_byte() {
 }
 
 #[test]
+fn field_byte_profile_counts_every_current_fixture_position() {
+    let profile =
+        profile_full_order_field_bytes(CURRENT_ORDER_FIXTURE, FullOrderLayoutVersion::Bytes91)
+            .expect("field profile");
+
+    assert!(profile.framing.is_complete());
+    assert_eq!(profile.fields.len(), 17);
+    for field in &profile.fields {
+        assert_eq!(
+            field.total_observations(),
+            Some(field.field.width as u64),
+            "{}",
+            field.field.name
+        );
+    }
+    assert!(
+        profile
+            .field("order_number")
+            .expect("order number")
+            .observed_bytes_are_ascii_digits()
+    );
+    let symbol = profile.field("symbol").expect("symbol");
+    assert_eq!(symbol.count(b' '), 2);
+    assert_eq!(symbol.count(b'R'), 1);
+    assert_eq!(symbol.total_observations(), Some(10));
+}
+
+#[test]
+fn field_byte_profile_rejects_an_out_of_bounds_layout_before_framing() {
+    let invalid = FieldLayout {
+        name: "invalid",
+        offset: CURRENT_FULL_ORDER_RECORD_LEN,
+        width: 1,
+    };
+
+    assert_eq!(
+        profile_fixed_width_field_bytes::<CURRENT_FULL_ORDER_RECORD_LEN>(
+            CURRENT_ORDER_FIXTURE,
+            &[invalid]
+        ),
+        Err(FieldByteProfileError::FieldOutOfBounds {
+            field: invalid,
+            payload_width: CURRENT_FULL_ORDER_RECORD_LEN,
+        })
+    );
+}
+
+#[test]
+fn field_byte_profile_retains_framing_residue_and_only_counts_complete_records() {
+    let mut source = CURRENT_TRADE_FIXTURE.to_vec();
+    source.extend_from_slice(b"partial");
+    let profile = profile_full_trade_field_bytes(&source, FullTradeLayoutVersion::Bytes103)
+        .expect("field profile");
+
+    assert_eq!(profile.framing.framed_records, 1);
+    assert!(profile.framing.bytes_reconcile());
+    assert!(!profile.framing.is_complete());
+    assert_eq!(
+        profile
+            .field("trade_number")
+            .expect("trade number")
+            .total_observations(),
+        Some(17)
+    );
+}
+
+#[test]
 #[ignore = "requires locally supplied public NSE sample files"]
 fn profiles_the_locally_supplied_public_legacy_sample() {
     let order_path = std::env::var_os("JFT_PUBLIC_CM_ORDER_SAMPLE")
@@ -102,4 +173,42 @@ fn profiles_the_locally_supplied_public_legacy_sample() {
     assert_eq!(trade_profile.framed_records, 300_000);
     assert!(order_profile.is_complete());
     assert!(trade_profile.is_complete());
+
+    let order_fields = profile_full_order_field_bytes(&orders, FullOrderLayoutVersion::Bytes87)
+        .expect("profile legacy Order fields");
+    let trade_fields = profile_full_trade_field_bytes(&trades, FullTradeLayoutVersion::Bytes100)
+        .expect("profile legacy Trade fields");
+    for name in [
+        "order_number",
+        "exchange_jiffy",
+        "disclosed_quantity",
+        "original_quantity",
+        "limit_price_paise",
+        "trigger_price_paise",
+    ] {
+        assert!(
+            order_fields
+                .field(name)
+                .expect("documented Order field")
+                .observed_bytes_are_ascii_digits(),
+            "Order field {name} contained a non-digit byte"
+        );
+    }
+    for name in [
+        "trade_number",
+        "exchange_jiffy",
+        "price_paise",
+        "quantity",
+        "buy_order_number",
+        "sell_order_number",
+    ] {
+        assert!(
+            trade_fields
+                .field(name)
+                .expect("documented Trade field")
+                .observed_bytes_are_ascii_digits(),
+            "Trade field {name} contained a non-digit byte"
+        );
+    }
+    assert!(order_fields.field("symbol").expect("symbol").count(b'b') > 0);
 }

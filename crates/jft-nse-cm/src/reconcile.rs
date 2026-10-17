@@ -4,12 +4,13 @@ use std::collections::BTreeMap;
 
 use crate::book::{BookProjectionError, OrderBookProjection};
 use crate::events::{OrderEvent, Side, TradeEvent};
-use crate::framing::{FramingError, FramingProfile, profile_fixed_width_lf};
+use crate::framing::{FixedWidthLfRecords, FramingError, FramingProfile, profile_fixed_width_lf};
 use crate::jiffy::ExchangeJiffy;
 use crate::layouts::{
-    CURRENT_FULL_ORDER_RECORD_LEN, CURRENT_FULL_TRADE_RECORD_LEN, FullOrderLayoutVersion,
-    FullTradeLayoutVersion, LEGACY_FULL_ORDER_RECORD_LEN, LEGACY_FULL_TRADE_100_RECORD_LEN,
-    LEGACY_FULL_TRADE_101_RECORD_LEN, SourceDate, TRIM_ORDER_RECORD_LEN, full_cm_layout_for_date,
+    CURRENT_FULL_ORDER_RECORD_LEN, CURRENT_FULL_TRADE_RECORD_LEN, FieldLayout,
+    FullOrderLayoutVersion, FullTradeLayoutVersion, LEGACY_FULL_ORDER_RECORD_LEN,
+    LEGACY_FULL_TRADE_100_RECORD_LEN, LEGACY_FULL_TRADE_101_RECORD_LEN, SourceDate,
+    TRIM_ORDER_RECORD_LEN, full_cm_layout_for_date,
 };
 use crate::lifecycle::{LifecycleAnomaly, LifecycleTransition, OrderKey, OrderLifecycle};
 use crate::manifest::{CmPairedStreamSet, CmProduct, CmRecordKind};
@@ -184,6 +185,66 @@ pub enum JiffyStreamSetProfileError {
     StreamMembersMismatch {
         expected: Vec<Option<u8>>,
         actual: Vec<Option<u8>>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FieldByteProfile {
+    pub field: FieldLayout,
+    byte_counts: [u64; 256],
+}
+
+impl FieldByteProfile {
+    #[must_use]
+    pub fn count(&self, byte: u8) -> u64 {
+        self.byte_counts[usize::from(byte)]
+    }
+
+    pub fn observed_bytes(&self) -> impl Iterator<Item = u8> + '_ {
+        self.byte_counts
+            .iter()
+            .enumerate()
+            .filter_map(|(byte, count)| (*count > 0).then_some(byte as u8))
+    }
+
+    #[must_use]
+    pub fn total_observations(&self) -> Option<u64> {
+        self.byte_counts
+            .iter()
+            .try_fold(0_u64, |total, count| total.checked_add(*count))
+    }
+
+    #[must_use]
+    pub fn observed_bytes_are_ascii_digits(&self) -> bool {
+        self.total_observations().is_some_and(|total| total > 0)
+            && self.observed_bytes().all(|byte| byte.is_ascii_digit())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FieldByteSourceProfile<'a> {
+    pub framing: FramingProfile<'a>,
+    pub fields: Vec<FieldByteProfile>,
+}
+
+impl FieldByteSourceProfile<'_> {
+    #[must_use]
+    pub fn field(&self, name: &str) -> Option<&FieldByteProfile> {
+        self.fields
+            .iter()
+            .find(|profile| profile.field.name == name)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FieldByteProfileError {
+    FieldOutOfBounds {
+        field: FieldLayout,
+        payload_width: usize,
+    },
+    ByteCountOverflow {
+        field: FieldLayout,
+        byte: u8,
     },
 }
 
@@ -392,6 +453,91 @@ pub fn profile_full_trade_framing(source: &[u8], source_date: SourceDate) -> Fra
             profile_fixed_width_lf::<CURRENT_FULL_TRADE_RECORD_LEN>(source)
         }
     }
+}
+
+pub fn profile_full_order_field_bytes(
+    source: &[u8],
+    layout: FullOrderLayoutVersion,
+) -> Result<FieldByteSourceProfile<'_>, FieldByteProfileError> {
+    match layout {
+        FullOrderLayoutVersion::Bytes87 => {
+            profile_fixed_width_field_bytes::<LEGACY_FULL_ORDER_RECORD_LEN>(source, layout.fields())
+        }
+        FullOrderLayoutVersion::Bytes91 => profile_fixed_width_field_bytes::<
+            CURRENT_FULL_ORDER_RECORD_LEN,
+        >(source, layout.fields()),
+    }
+}
+
+pub fn profile_full_trade_field_bytes(
+    source: &[u8],
+    layout: FullTradeLayoutVersion,
+) -> Result<FieldByteSourceProfile<'_>, FieldByteProfileError> {
+    match layout {
+        FullTradeLayoutVersion::Bytes100 => profile_fixed_width_field_bytes::<
+            LEGACY_FULL_TRADE_100_RECORD_LEN,
+        >(source, layout.fields()),
+        FullTradeLayoutVersion::Bytes101 => profile_fixed_width_field_bytes::<
+            LEGACY_FULL_TRADE_101_RECORD_LEN,
+        >(source, layout.fields()),
+        FullTradeLayoutVersion::Bytes103 => profile_fixed_width_field_bytes::<
+            CURRENT_FULL_TRADE_RECORD_LEN,
+        >(source, layout.fields()),
+    }
+}
+
+pub fn profile_fixed_width_field_bytes<'a, const N: usize>(
+    source: &'a [u8],
+    fields: &[FieldLayout],
+) -> Result<FieldByteSourceProfile<'a>, FieldByteProfileError> {
+    for field in fields {
+        if field.end() > N {
+            return Err(FieldByteProfileError::FieldOutOfBounds {
+                field: *field,
+                payload_width: N,
+            });
+        }
+    }
+
+    let mut profile = FieldByteSourceProfile {
+        framing: FramingProfile {
+            payload_width: N,
+            source_bytes: source.len(),
+            framed_records: 0,
+            framing_error: None,
+        },
+        fields: fields
+            .iter()
+            .copied()
+            .map(|field| FieldByteProfile {
+                field,
+                byte_counts: [0; 256],
+            })
+            .collect(),
+    };
+
+    for outcome in FixedWidthLfRecords::<N>::new(source) {
+        let record = match outcome {
+            Ok(record) => record,
+            Err(error) => {
+                profile.framing.framing_error = Some(error);
+                break;
+            }
+        };
+        profile.framing.framed_records += 1;
+
+        for field_profile in &mut profile.fields {
+            let field = field_profile.field;
+            for byte in &record.raw[field.offset..field.end()] {
+                let count = &mut field_profile.byte_counts[usize::from(*byte)];
+                *count = count
+                    .checked_add(1)
+                    .ok_or(FieldByteProfileError::ByteCountOverflow { field, byte: *byte })?;
+            }
+        }
+    }
+
+    Ok(profile)
 }
 
 pub fn profile_trim_order_stream_set<'a>(

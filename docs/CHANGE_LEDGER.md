@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-18 - Profile Full field byte domains without decoding
+
+- **Changed:** Added checked per-field byte histograms over exact Full layout slices. Profiles expose observed bytes/counts and digit-only evidence, reject an out-of-bounds field map before reading records, count only complete frames, and retain byte-reconciled framing residue.
+- **Why:** Raw byte domains are factual evidence that can narrow parser questions without prematurely choosing signedness, conditional zero rules, or semantic decoding. The public legacy sample is useful for this bounded observation but cannot establish current delivery behavior.
+- **Validation:** Three default tests prove exact field-position totals on the current synthetic Full fixture, pre-framing rejection of an invalid map, and exclusion of a partial record with retained residue. The opt-in test scanned all 600,000 public legacy records: every observed byte in six Order and six Trade numeric fields was an ASCII digit, and literal `b` occurred in Order symbols. All 128 default Rust tests pass; the external-data test passes independently.
+- **Related:** DEC-2026-008; Phase 0 public-sample diagnostics; Phase 1 Full ambiguity gate.
+- **Follow-up:** Keep signedness and Full semantic validation unresolved until representative current files or written vendor clarification are available.
+
+---
+
 ## 2026-10-18 - Structurally profile every Full layout era
 
 - **Changed:** Added streaming structural profiles that count exact-width LF-framed records, source bytes, and borrowed failure residue; expose checked byte reconciliation/completeness; and dispatch Full Orders and Trades to 87/91 and 100/101/103-byte widths by validated source date. No Full field semantics are decoded.
