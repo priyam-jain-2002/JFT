@@ -1,8 +1,14 @@
 use jft_nse_cm::framing::FramingErrorReason;
 use jft_nse_cm::jiffy::ExchangeJiffy;
+use jft_nse_cm::layouts::SourceDate;
 use jft_nse_cm::layouts::{TRIM_ORDER_RECORD_LEN, TRIM_TRADE_RECORD_LEN};
+use jft_nse_cm::manifest::{
+    CmFilePrefix, CmLogicalGroupKey, CmPairedStreamSet, CmProduct, CmRecordKind,
+};
 use jft_nse_cm::reconcile::{
-    JiffyRegression, SourceCoordinate, profile_trim_order_jiffies, profile_trim_trade_jiffies,
+    CmStreamSource, JiffyRegression, JiffyStreamRangeOverlap, JiffyStreamSetProfileError,
+    SourceCoordinate, profile_trim_order_jiffies, profile_trim_order_stream_set,
+    profile_trim_trade_jiffies, profile_trim_trade_stream_set,
 };
 
 const ENTRY_FIXTURE: &[u8] =
@@ -11,6 +17,18 @@ const MODIFY_FIXTURE: &[u8] =
     include_bytes!("../../../tests/fixtures/nse_cm/synthetic_nonlicensed/trim_order_modify.dat");
 const TRADE_FIXTURE: &[u8] =
     include_bytes!("../../../tests/fixtures/nse_cm/synthetic_nonlicensed/trim_trade.dat");
+
+fn delivery(record_kind: CmRecordKind, members: Vec<Option<u8>>) -> CmPairedStreamSet {
+    CmPairedStreamSet {
+        prefix: CmFilePrefix::Cm,
+        key: CmLogicalGroupKey {
+            product: CmProduct::Trim,
+            record_kind,
+            source_date: SourceDate::new(2026, 5, 18).expect("valid source date"),
+        },
+        members,
+    }
+}
 
 #[test]
 fn profiles_empty_and_strictly_increasing_order_sources() {
@@ -131,5 +149,123 @@ fn repeated_profiles_are_identical() {
     assert_eq!(
         profile_trim_order_jiffies(&source),
         profile_trim_order_jiffies(&source)
+    );
+}
+
+#[test]
+fn profiles_complete_paired_stream_set_in_member_order() {
+    let expected = delivery(CmRecordKind::Orders, vec![Some(1), Some(2)]);
+    let sources = [
+        CmStreamSource {
+            member: Some(2),
+            source: ENTRY_FIXTURE,
+        },
+        CmStreamSource {
+            member: Some(1),
+            source: ENTRY_FIXTURE,
+        },
+    ];
+    let profile = profile_trim_order_stream_set(&expected, &sources).expect("profile");
+
+    assert!(profile.counts_reconcile());
+    assert_eq!(
+        profile
+            .streams
+            .iter()
+            .map(|stream| stream.member)
+            .collect::<Vec<_>>(),
+        vec![Some(1), Some(2)]
+    );
+    assert_eq!(
+        profile.range_overlaps,
+        vec![JiffyStreamRangeOverlap {
+            left_member: Some(1),
+            right_member: Some(2),
+        }]
+    );
+}
+
+#[test]
+fn stream_set_profile_is_identical_for_reversed_source_input() {
+    let expected = delivery(CmRecordKind::Orders, vec![Some(1), Some(2)]);
+    let forward = [
+        CmStreamSource {
+            member: Some(1),
+            source: ENTRY_FIXTURE,
+        },
+        CmStreamSource {
+            member: Some(2),
+            source: MODIFY_FIXTURE,
+        },
+    ];
+    let reverse = [forward[1], forward[0]];
+
+    assert_eq!(
+        profile_trim_order_stream_set(&expected, &forward),
+        profile_trim_order_stream_set(&expected, &reverse)
+    );
+}
+
+#[test]
+fn profiles_an_unsplit_trade_delivery_without_inventing_a_stream_number() {
+    let expected = delivery(CmRecordKind::Trades, vec![None]);
+    let sources = [CmStreamSource {
+        member: None,
+        source: TRADE_FIXTURE,
+    }];
+    let profile = profile_trim_trade_stream_set(&expected, &sources).expect("profile");
+
+    assert!(profile.counts_reconcile());
+    assert_eq!(profile.streams.len(), 1);
+    assert_eq!(profile.streams[0].member, None);
+    assert_eq!(profile.streams[0].source.parsed_records, 1);
+    assert!(profile.range_overlaps.is_empty());
+}
+
+#[test]
+fn stream_set_profile_rejects_missing_duplicate_and_extra_members_before_parsing() {
+    let expected = delivery(CmRecordKind::Orders, vec![Some(1), Some(2)]);
+    let sources = [
+        CmStreamSource {
+            member: Some(1),
+            source: b"not parsed",
+        },
+        CmStreamSource {
+            member: Some(1),
+            source: b"not parsed either",
+        },
+        CmStreamSource {
+            member: Some(3),
+            source: b"still not parsed",
+        },
+    ];
+
+    assert_eq!(
+        profile_trim_order_stream_set(&expected, &sources),
+        Err(JiffyStreamSetProfileError::StreamMembersMismatch {
+            expected: vec![Some(1), Some(2)],
+            actual: vec![Some(1), Some(1), Some(3)],
+        })
+    );
+}
+
+#[test]
+fn stream_set_profile_rejects_wrong_product_and_record_kind() {
+    let mut full = delivery(CmRecordKind::Orders, vec![None]);
+    full.key.product = CmProduct::Full;
+    assert_eq!(
+        profile_trim_order_stream_set(&full, &[]),
+        Err(JiffyStreamSetProfileError::ExpectedTrim {
+            actual: CmProduct::Full,
+        })
+    );
+
+    let trades = delivery(CmRecordKind::Trades, vec![None]);
+    assert_eq!(
+        profile_trim_order_stream_set(&trades, &[]),
+        Err(JiffyStreamSetProfileError::RecordKindMismatch {
+            expected: CmRecordKind::Orders,
+            actual: CmRecordKind::Trades,
+        })
     );
 }

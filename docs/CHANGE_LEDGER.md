@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-18 - Bind jiffy profiles to paired stream sets
+
+- **Changed:** Added Trim Order and Trade stream-set profiling bound to an already discovered paired delivery. The profiler requires exact member coverage before reading records, normalizes source input to member order, preserves every per-source profile, reconciles counts per member, and reports every pair whose observed raw-jiffy ranges overlap.
+- **Why:** Representative-data qualification must not accidentally omit, duplicate, or add a stream, and caller enumeration order must not alter the diagnostic result. Range overlap is evidence for later ordering analysis, not a merge rule.
+- **Validation:** Five new tests prove deterministic split-member ordering, identical reports for reversed inputs, exact rejection of missing/duplicate/extra membership before parsing, fail-fast product/kind mismatch, and unsplit Trade handling without inventing a stream number. All 121 Rust tests pass.
+- **Related:** DEC-2026-008; Phase 1 jiffy and multi-stream qualification gates.
+- **Follow-up:** Run these profiles on representative paired current deliveries, retain the reports with source integrity evidence, and consult before selecting any cross-stream or Orders-versus-Trades replay policy.
+
+---
+
 ## 2026-10-18 - Classify exact top-of-book state
 
 - **Changed:** Added a typed, integer-only top-of-book view for each projected price book: empty, bid-only, ask-only, normal with exact spread, locked, or crossed with exact cross amount. Every state retains the underlying best-level order counts and quantities.

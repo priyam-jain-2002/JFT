@@ -8,6 +8,7 @@ use crate::framing::FramingError;
 use crate::jiffy::ExchangeJiffy;
 use crate::layouts::TRIM_ORDER_RECORD_LEN;
 use crate::lifecycle::{LifecycleAnomaly, LifecycleTransition, OrderKey, OrderLifecycle};
+use crate::manifest::{CmPairedStreamSet, CmProduct, CmRecordKind};
 use crate::parser::{LocatedParse, parse_trim_order_source, parse_trim_trade_source};
 use crate::quarantine::QuarantinedRecord;
 
@@ -132,6 +133,54 @@ impl JiffySourceProfile<'_> {
         self.parsed_records.checked_add(self.quarantines.len()) == Some(self.framed_records)
             && self.sequence.observation_count == self.parsed_records
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CmStreamSource<'a> {
+    pub member: Option<u8>,
+    pub source: &'a [u8],
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JiffyStreamProfile<'a> {
+    pub member: Option<u8>,
+    pub source: JiffySourceProfile<'a>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct JiffyStreamRangeOverlap {
+    pub left_member: Option<u8>,
+    pub right_member: Option<u8>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JiffyStreamSetProfile<'a> {
+    pub streams: Vec<JiffyStreamProfile<'a>>,
+    pub range_overlaps: Vec<JiffyStreamRangeOverlap>,
+}
+
+impl JiffyStreamSetProfile<'_> {
+    #[must_use]
+    pub fn counts_reconcile(&self) -> bool {
+        self.streams
+            .iter()
+            .all(|stream| stream.source.counts_reconcile())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum JiffyStreamSetProfileError {
+    ExpectedTrim {
+        actual: CmProduct,
+    },
+    RecordKindMismatch {
+        expected: CmRecordKind,
+        actual: CmRecordKind,
+    },
+    StreamMembersMismatch {
+        expected: Vec<Option<u8>>,
+        actual: Vec<Option<u8>>,
+    },
 }
 
 impl TrimOrderReplay<'_> {
@@ -311,6 +360,80 @@ pub fn profile_trim_order_jiffies(source: &[u8]) -> JiffySourceProfile<'_> {
 pub fn profile_trim_trade_jiffies(source: &[u8]) -> JiffySourceProfile<'_> {
     profile_jiffies(parse_trim_trade_source(source), |event| {
         event.exchange_jiffy
+    })
+}
+
+pub fn profile_trim_order_stream_set<'a>(
+    delivery: &CmPairedStreamSet,
+    sources: &[CmStreamSource<'a>],
+) -> Result<JiffyStreamSetProfile<'a>, JiffyStreamSetProfileError> {
+    profile_trim_stream_set(delivery, sources, CmRecordKind::Orders, |source| {
+        profile_trim_order_jiffies(source)
+    })
+}
+
+pub fn profile_trim_trade_stream_set<'a>(
+    delivery: &CmPairedStreamSet,
+    sources: &[CmStreamSource<'a>],
+) -> Result<JiffyStreamSetProfile<'a>, JiffyStreamSetProfileError> {
+    profile_trim_stream_set(delivery, sources, CmRecordKind::Trades, |source| {
+        profile_trim_trade_jiffies(source)
+    })
+}
+
+fn profile_trim_stream_set<'a>(
+    delivery: &CmPairedStreamSet,
+    sources: &[CmStreamSource<'a>],
+    expected_kind: CmRecordKind,
+    profile_source: impl Fn(&'a [u8]) -> JiffySourceProfile<'a>,
+) -> Result<JiffyStreamSetProfile<'a>, JiffyStreamSetProfileError> {
+    if delivery.key.product != CmProduct::Trim {
+        return Err(JiffyStreamSetProfileError::ExpectedTrim {
+            actual: delivery.key.product,
+        });
+    }
+    if delivery.key.record_kind != expected_kind {
+        return Err(JiffyStreamSetProfileError::RecordKindMismatch {
+            expected: expected_kind,
+            actual: delivery.key.record_kind,
+        });
+    }
+
+    let mut ordered_sources = sources.to_vec();
+    ordered_sources.sort_by_key(|source| source.member);
+    let actual = ordered_sources
+        .iter()
+        .map(|source| source.member)
+        .collect::<Vec<_>>();
+    if actual != delivery.members {
+        return Err(JiffyStreamSetProfileError::StreamMembersMismatch {
+            expected: delivery.members.clone(),
+            actual,
+        });
+    }
+
+    let streams = ordered_sources
+        .into_iter()
+        .map(|stream| JiffyStreamProfile {
+            member: stream.member,
+            source: profile_source(stream.source),
+        })
+        .collect::<Vec<_>>();
+    let mut range_overlaps = Vec::new();
+    for (left_index, left) in streams.iter().enumerate() {
+        for right in &streams[left_index + 1..] {
+            if left.source.sequence.range_overlaps(&right.source.sequence) {
+                range_overlaps.push(JiffyStreamRangeOverlap {
+                    left_member: left.member,
+                    right_member: right.member,
+                });
+            }
+        }
+    }
+
+    Ok(JiffyStreamSetProfile {
+        streams,
+        range_overlaps,
     })
 }
 
