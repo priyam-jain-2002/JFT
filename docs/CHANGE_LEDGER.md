@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-17 - Project active orders into deterministic price levels
+
+- **Changed:** Added a pure Rust projection from active lifecycle state into deterministic per-session/raw-instrument bid and ask maps. Levels aggregate checked `u64` order counts and quantities, expose exact best prices, retain locked/crossed states, and return typed overflow evidence instead of wrapping.
+- **Why:** Price-level correctness can be proven independently of incremental replay, trades, queue priority, and hashing. Recomputing from authoritative active orders avoids introducing a second mutable state before provenance orchestration exists.
+- **Validation:** Eight new tests prove empty state, same-price aggregation, exact side/BBO separation, locked/crossed preservation, session/instrument isolation, modify/cancel reflection, multi-book input-order independence, and explicit quantity overflow. All 88 Rust tests pass.
+- **Related:** DEC-2026-008; Phase 1 book-state contract.
+- **Follow-up:** Add provenance-carrying replay orchestration and deterministic checkpoint serialization only after canonical identity v1 is approved; do not add trade-driven decrements before representative evidence.
+
+---
+
 ## 2026-10-17 - Add the deterministic order lifecycle reducer
 
 - **Changed:** Added a Rust order-only lifecycle reducer keyed by raw instrument/session/order identity. Entry creates active state, modify replaces published side/quantity/price while retaining entry time, and cancel removes state. Duplicate entry, unknown modify/cancel, and per-order regressing jiffies return typed anomalies without mutation. Added hashed synthetic modify/cancel fixtures.
