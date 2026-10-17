@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-17 - Require exact data/trigger stream-set pairing
+
+- **Changed:** Added typed pairing for validated data and trigger sets, requiring correct roles, the same documented prefix, logical product/date/kind identity, split form, and exact observed stream members.
+- **Why:** A complete data set with a missing or orphan trigger cannot pass integrity verification. Treating `CM` and `CASH` as implicit aliases would conceal the v1.19 naming conflict and could pair unrelated objects.
+- **Validation:** Six new tests prove matched split and unsplit pairing; missing trigger members, prefix conflict, logical group mismatch, split-form mismatch, and reversed roles all fail with specific evidence. All 63 Rust tests pass; formatting, compilation, and strict Clippy pass.
+- **Related:** NSE Historical Order & Trade Data v1.19 sections 2.1.9 and 3.1.10; DEC-2026-008; Phase 1 delivery-integrity contract.
+- **Follow-up:** Add directory-level grouping of decoded names and require exactly one validated data/trigger pair per logical Order/Trade group before hashing or decompression.
+
+---
+
 ## 2026-10-17 - Discover homogeneous CM stream sets without a fixed count
 
 - **Changed:** Added typed CM file-group keys and set-level discovery for unsplit or contiguous split streams, retaining prefix/product/date/kind/data-trigger identity.

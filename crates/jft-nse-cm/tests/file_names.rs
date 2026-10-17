@@ -1,7 +1,8 @@
 use jft_nse_cm::layouts::{SourceDate, SourceDateError};
 use jft_nse_cm::manifest::{
-    CmFileGroupKey, CmFileNameError, CmFilePrefix, CmProduct, CmRecordKind, CmSourceFileName,
-    CmStreamForm, CmStreamSetError, discover_cm_stream_set, parse_cm_source_file_name,
+    CmFileGroupKey, CmFileNameError, CmFilePrefix, CmLogicalGroupKey, CmPairingError, CmProduct,
+    CmRecordKind, CmSourceFileName, CmStreamForm, CmStreamSet, CmStreamSetError,
+    discover_cm_stream_set, pair_cm_data_and_triggers, parse_cm_source_file_name,
 };
 
 fn parse_all(names: &[&str]) -> Vec<CmSourceFileName> {
@@ -9,6 +10,10 @@ fn parse_all(names: &[&str]) -> Vec<CmSourceFileName> {
         .iter()
         .map(|name| parse_cm_source_file_name(name).expect("valid test name"))
         .collect()
+}
+
+fn discover(names: &[&str]) -> CmStreamSet {
+    discover_cm_stream_set(&parse_all(names)).expect("valid test set")
 }
 
 #[test]
@@ -199,4 +204,100 @@ fn accepts_exactly_one_unsplit_member() {
 #[test]
 fn rejects_an_empty_discovery_input() {
     assert_eq!(discover_cm_stream_set(&[]), Err(CmStreamSetError::Empty));
+}
+
+#[test]
+fn pairs_matching_split_data_and_trigger_members() {
+    let data = discover(&[
+        "CASH_Orders_16062025_02.DAT.gz",
+        "CASH_Orders_16062025_01.DAT.gz",
+    ]);
+    let triggers = discover(&[
+        "CASH_Orders_16062025_01.DAT.gz.trg",
+        "CASH_Orders_16062025_02.DAT.gz.trg",
+    ]);
+
+    let paired = pair_cm_data_and_triggers(&data, &triggers).expect("matching delivery");
+    assert_eq!(paired.prefix, CmFilePrefix::Cash);
+    assert_eq!(paired.key.product, CmProduct::Full);
+    assert_eq!(paired.key.record_kind, CmRecordKind::Orders);
+    assert_eq!(paired.members, vec![Some(1), Some(2)]);
+}
+
+#[test]
+fn pairs_matching_unsplit_data_and_trigger_members() {
+    let data = discover(&["CM_Trades_30062024.DAT.gz"]);
+    let triggers = discover(&["CM_Trades_30062024.DAT.gz.trg"]);
+
+    assert_eq!(
+        pair_cm_data_and_triggers(&data, &triggers)
+            .expect("matching unsplit delivery")
+            .members,
+        vec![None]
+    );
+}
+
+#[test]
+fn rejects_data_and_trigger_member_mismatch() {
+    let data = discover(&[
+        "CASH_Orders_16062025_01.DAT.gz",
+        "CASH_Orders_16062025_02.DAT.gz",
+    ]);
+    let triggers = discover(&["CASH_Orders_16062025_01.DAT.gz.trg"]);
+
+    assert_eq!(
+        pair_cm_data_and_triggers(&data, &triggers),
+        Err(CmPairingError::StreamMembersMismatch {
+            data: vec![1, 2],
+            trigger: vec![1],
+        })
+    );
+}
+
+#[test]
+fn reports_prefix_conflict_instead_of_aliasing_it() {
+    let data = discover(&["CM_Orders_T_18052026_01.DAT.gz"]);
+    let triggers = discover(&["CASH_Orders_T_18052026_01.DAT.gz.trg"]);
+
+    assert_eq!(
+        pair_cm_data_and_triggers(&data, &triggers),
+        Err(CmPairingError::PrefixMismatch {
+            data: CmFilePrefix::Cm,
+            trigger: CmFilePrefix::Cash,
+        })
+    );
+}
+
+#[test]
+fn rejects_logical_group_and_stream_form_mismatches() {
+    let data = discover(&["CASH_Orders_16062025_01.DAT.gz"]);
+    let wrong_kind = discover(&["CASH_Trades_16062025_01.DAT.gz.trg"]);
+    assert_eq!(
+        pair_cm_data_and_triggers(&data, &wrong_kind),
+        Err(CmPairingError::LogicalGroupMismatch {
+            data: CmLogicalGroupKey::from(data.key),
+            trigger: CmLogicalGroupKey::from(wrong_kind.key),
+        })
+    );
+
+    let unsplit_trigger = discover(&["CASH_Orders_16062025.DAT.gz.trg"]);
+    assert_eq!(
+        pair_cm_data_and_triggers(&data, &unsplit_trigger),
+        Err(CmPairingError::StreamFormMismatch)
+    );
+}
+
+#[test]
+fn rejects_reversed_data_and_trigger_roles() {
+    let data = discover(&["CASH_Orders_16062025_01.DAT.gz"]);
+    let triggers = discover(&["CASH_Orders_16062025_01.DAT.gz.trg"]);
+
+    assert_eq!(
+        pair_cm_data_and_triggers(&triggers, &data),
+        Err(CmPairingError::DataSetHasTriggerRole)
+    );
+    assert_eq!(
+        pair_cm_data_and_triggers(&data, &data),
+        Err(CmPairingError::TriggerSetHasDataRole)
+    );
 }

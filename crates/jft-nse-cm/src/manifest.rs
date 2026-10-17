@@ -89,6 +89,49 @@ pub enum CmStreamSetError {
     },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CmLogicalGroupKey {
+    pub product: CmProduct,
+    pub record_kind: CmRecordKind,
+    pub source_date: SourceDate,
+}
+
+impl From<CmFileGroupKey> for CmLogicalGroupKey {
+    fn from(key: CmFileGroupKey) -> Self {
+        Self {
+            product: key.product,
+            record_kind: key.record_kind,
+            source_date: key.source_date,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CmPairedStreamSet {
+    pub prefix: CmFilePrefix,
+    pub key: CmLogicalGroupKey,
+    pub members: Vec<Option<u8>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CmPairingError {
+    DataSetHasTriggerRole,
+    TriggerSetHasDataRole,
+    PrefixMismatch {
+        data: CmFilePrefix,
+        trigger: CmFilePrefix,
+    },
+    LogicalGroupMismatch {
+        data: CmLogicalGroupKey,
+        trigger: CmLogicalGroupKey,
+    },
+    StreamFormMismatch,
+    StreamMembersMismatch {
+        data: Vec<u8>,
+        trigger: Vec<u8>,
+    },
+}
+
 pub fn parse_cm_source_file_name(name: &str) -> Result<CmSourceFileName, CmFileNameError> {
     let (data_name, is_trigger) = match name.strip_suffix(".trg") {
         Some(data_name) => (data_name, true),
@@ -184,6 +227,53 @@ pub fn discover_cm_stream_set(files: &[CmSourceFileName]) -> Result<CmStreamSet,
         form: CmStreamForm::Split {
             streams: (1..=maximum).collect(),
         },
+    })
+}
+
+pub fn pair_cm_data_and_triggers(
+    data: &CmStreamSet,
+    triggers: &CmStreamSet,
+) -> Result<CmPairedStreamSet, CmPairingError> {
+    if data.key.is_trigger {
+        return Err(CmPairingError::DataSetHasTriggerRole);
+    }
+    if !triggers.key.is_trigger {
+        return Err(CmPairingError::TriggerSetHasDataRole);
+    }
+    if data.key.prefix != triggers.key.prefix {
+        return Err(CmPairingError::PrefixMismatch {
+            data: data.key.prefix,
+            trigger: triggers.key.prefix,
+        });
+    }
+
+    let data_key = CmLogicalGroupKey::from(data.key);
+    let trigger_key = CmLogicalGroupKey::from(triggers.key);
+    if data_key != trigger_key {
+        return Err(CmPairingError::LogicalGroupMismatch {
+            data: data_key,
+            trigger: trigger_key,
+        });
+    }
+
+    let members = match (&data.form, &triggers.form) {
+        (CmStreamForm::Unsplit, CmStreamForm::Unsplit) => vec![None],
+        (CmStreamForm::Split { streams: data }, CmStreamForm::Split { streams: trigger }) => {
+            if data != trigger {
+                return Err(CmPairingError::StreamMembersMismatch {
+                    data: data.clone(),
+                    trigger: trigger.clone(),
+                });
+            }
+            data.iter().copied().map(Some).collect()
+        }
+        _ => return Err(CmPairingError::StreamFormMismatch),
+    };
+
+    Ok(CmPairedStreamSet {
+        prefix: data.key.prefix,
+        key: data_key,
+        members,
     })
 }
 
