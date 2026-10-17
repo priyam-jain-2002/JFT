@@ -36,6 +36,38 @@ pub struct PriceBook {
     asks: BTreeMap<u64, PriceLevel>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TopOfBook {
+    Empty,
+    BidOnly {
+        price_paise: u64,
+        level: PriceLevel,
+    },
+    AskOnly {
+        price_paise: u64,
+        level: PriceLevel,
+    },
+    Normal {
+        bid_price_paise: u64,
+        bid: PriceLevel,
+        ask_price_paise: u64,
+        ask: PriceLevel,
+        spread_paise: u64,
+    },
+    Locked {
+        price_paise: u64,
+        bid: PriceLevel,
+        ask: PriceLevel,
+    },
+    Crossed {
+        bid_price_paise: u64,
+        bid: PriceLevel,
+        ask_price_paise: u64,
+        ask: PriceLevel,
+        cross_paise: u64,
+    },
+}
+
 impl PriceBook {
     pub fn bids(&self) -> impl DoubleEndedIterator<Item = (u64, PriceLevel)> + '_ {
         self.bids.iter().map(|(price, level)| (*price, *level))
@@ -53,6 +85,38 @@ impl PriceBook {
     #[must_use]
     pub fn best_ask(&self) -> Option<(u64, PriceLevel)> {
         self.asks().next()
+    }
+
+    #[must_use]
+    pub fn top(&self) -> TopOfBook {
+        match (self.best_bid(), self.best_ask()) {
+            (None, None) => TopOfBook::Empty,
+            (Some((price_paise, level)), None) => TopOfBook::BidOnly { price_paise, level },
+            (None, Some((price_paise, level))) => TopOfBook::AskOnly { price_paise, level },
+            (Some((bid_price_paise, bid)), Some((ask_price_paise, ask))) => {
+                match bid_price_paise.cmp(&ask_price_paise) {
+                    std::cmp::Ordering::Less => TopOfBook::Normal {
+                        bid_price_paise,
+                        bid,
+                        ask_price_paise,
+                        ask,
+                        spread_paise: ask_price_paise - bid_price_paise,
+                    },
+                    std::cmp::Ordering::Equal => TopOfBook::Locked {
+                        price_paise: bid_price_paise,
+                        bid,
+                        ask,
+                    },
+                    std::cmp::Ordering::Greater => TopOfBook::Crossed {
+                        bid_price_paise,
+                        bid,
+                        ask_price_paise,
+                        ask,
+                        cross_paise: bid_price_paise - ask_price_paise,
+                    },
+                }
+            }
+        }
     }
 }
 

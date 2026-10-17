@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-18 - Classify exact top-of-book state
+
+- **Changed:** Added a typed, integer-only top-of-book view for each projected price book: empty, bid-only, ask-only, normal with exact spread, locked, or crossed with exact cross amount. Every state retains the underlying best-level order counts and quantities.
+- **Why:** Locked and crossed observations must be measurable anomalies, not silently removed or normalized. A typed result also prevents downstream code from recomputing spread/cross arithmetic inconsistently.
+- **Validation:** Four new tests prove empty/one-sided classification, exact normal spread, locked preservation, and exact crossed amount without repair. All 116 Rust tests pass; formatting, compilation, strict Clippy, and diff checks pass.
+- **Related:** DEC-2026-008; Phase 1 book invariant contract.
+- **Follow-up:** Count and contextualize these states on representative current data only after stream ordering is evidenced; synthetic states validate classification, not real-market incidence.
+
+---
+
 ## 2026-10-17 - Stream exact successful lifecycle transitions
 
 - **Changed:** Added an allocation-free replay observer that receives every successful Trim Order lifecycle transition with exact source coordinate, parsed event, complete 68-byte raw record, and entered/modified/cancelled state delta. Default replay delegates to the same path with a no-op observer.

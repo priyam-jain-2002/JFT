@@ -1,4 +1,6 @@
-use jft_nse_cm::book::{BookKey, BookProjectionError, OrderBookProjection, PriceLevel};
+use jft_nse_cm::book::{
+    BookKey, BookProjectionError, OrderBookProjection, PriceBook, PriceLevel, TopOfBook,
+};
 use jft_nse_cm::events::{OrderActivity, OrderEvent, Session, Side};
 use jft_nse_cm::jiffy::ExchangeJiffy;
 use jft_nse_cm::layouts::TRIM_ORDER_RECORD_LEN;
@@ -217,5 +219,120 @@ fn quantity_overflow_is_an_explicit_error() {
             side: Side::Buy,
             price_paise: maximum.price_paise,
         })
+    );
+}
+
+#[test]
+fn top_of_book_classifies_empty_and_one_sided_states() {
+    assert_eq!(PriceBook::default().top(), TopOfBook::Empty);
+
+    let bid = base_order();
+    let level = PriceLevel {
+        order_count: 1,
+        total_quantity: bid.quantity,
+    };
+    let mut bids = OrderLifecycle::new();
+    insert(&mut bids, &bid);
+    let projection = OrderBookProjection::from_lifecycle(&bids).expect("bid projection");
+    assert_eq!(
+        projection.get(&key(&bid)).expect("book").top(),
+        TopOfBook::BidOnly {
+            price_paise: 250_000,
+            level,
+        }
+    );
+
+    let mut ask = bid.clone();
+    ask.side = Side::Sell;
+    let mut asks = OrderLifecycle::new();
+    insert(&mut asks, &ask);
+    let projection = OrderBookProjection::from_lifecycle(&asks).expect("ask projection");
+    assert_eq!(
+        projection.get(&key(&ask)).expect("book").top(),
+        TopOfBook::AskOnly {
+            price_paise: 250_000,
+            level,
+        }
+    );
+}
+
+#[test]
+fn top_of_book_reports_exact_normal_spread() {
+    let bid = base_order();
+    let mut ask = bid.clone();
+    ask.order_number = 2;
+    ask.side = Side::Sell;
+    ask.price_paise = 250_250;
+    let mut lifecycle = OrderLifecycle::new();
+    insert(&mut lifecycle, &bid);
+    insert(&mut lifecycle, &ask);
+    let projection = OrderBookProjection::from_lifecycle(&lifecycle).expect("projection");
+    let level = PriceLevel {
+        order_count: 1,
+        total_quantity: bid.quantity,
+    };
+
+    assert_eq!(
+        projection.get(&key(&bid)).expect("book").top(),
+        TopOfBook::Normal {
+            bid_price_paise: 250_000,
+            bid: level,
+            ask_price_paise: 250_250,
+            ask: level,
+            spread_paise: 250,
+        }
+    );
+}
+
+#[test]
+fn top_of_book_classifies_locked_state_without_dropping_levels() {
+    let bid = base_order();
+    let mut ask = bid.clone();
+    ask.order_number = 2;
+    ask.side = Side::Sell;
+    let mut lifecycle = OrderLifecycle::new();
+    insert(&mut lifecycle, &bid);
+    insert(&mut lifecycle, &ask);
+    let projection = OrderBookProjection::from_lifecycle(&lifecycle).expect("projection");
+    let level = PriceLevel {
+        order_count: 1,
+        total_quantity: bid.quantity,
+    };
+
+    assert_eq!(
+        projection.get(&key(&bid)).expect("book").top(),
+        TopOfBook::Locked {
+            price_paise: 250_000,
+            bid: level,
+            ask: level,
+        }
+    );
+}
+
+#[test]
+fn top_of_book_reports_exact_cross_amount_without_repair() {
+    let bid = base_order();
+    let mut ask = bid.clone();
+    ask.order_number = 2;
+    ask.side = Side::Sell;
+    ask.price_paise = 249_900;
+    let mut lifecycle = OrderLifecycle::new();
+    insert(&mut lifecycle, &bid);
+    insert(&mut lifecycle, &ask);
+    let projection = OrderBookProjection::from_lifecycle(&lifecycle).expect("projection");
+    let level = PriceLevel {
+        order_count: 1,
+        total_quantity: bid.quantity,
+    };
+
+    assert_eq!(
+        projection.get(&key(&bid)).expect("book").top(),
+        TopOfBook::Crossed {
+            bid_price_paise: 250_000,
+            bid: level,
+            ask_price_paise: 249_900,
+            ask: level,
+            cross_paise: 100,
+        }
     );
 }
