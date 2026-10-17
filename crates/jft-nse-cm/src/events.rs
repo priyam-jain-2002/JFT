@@ -2,14 +2,14 @@
 
 use crate::jiffy::ExchangeJiffy;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Session {
     PreOpen,
     RegularMarket,
     ClosingAuction,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MarketSegment {
     Cash,
 }

@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-17 - Add the deterministic order lifecycle reducer
+
+- **Changed:** Added a Rust order-only lifecycle reducer keyed by raw instrument/session/order identity. Entry creates active state, modify replaces published side/quantity/price while retaining entry time, and cancel removes state. Duplicate entry, unknown modify/cancel, and per-order regressing jiffies return typed anomalies without mutation. Added hashed synthetic modify/cancel fixtures.
+- **Why:** Book reconstruction needs an explicit, auditable transition boundary before price-level aggregation. Keeping trades and queue-priority assumptions out prevents unresolved execution semantics from contaminating order lifecycle state.
+- **Validation:** Seven new tests exercise parsed entry→modify→cancel transitions, duplicate and unknown-order anomalies, non-mutating modify/cancel time regressions, same-jiffy caller order, and input-order-independent active state. All 80 Rust tests pass; both new fixtures are exactly 69 bytes and have frozen SHA-256 identities.
+- **Related:** DEC-2026-008; Phase 1 lifecycle contract.
+- **Follow-up:** Add source-coordinate/provenance orchestration after the canonical identity decision; then build order-level book projection without trade decrements or queue-priority claims.
+
+---
+
 ## 2026-10-17 - Partition complete CM delivery inventories deterministically
 
 - **Changed:** Added dependency-free inventory discovery that parses arbitrary CM filenames, retains exact rejected names and reasons, sorts valid inputs canonically, partitions all date/product/record-kind groups, and returns an independent delivery outcome for each group in `O(n log n)` time.

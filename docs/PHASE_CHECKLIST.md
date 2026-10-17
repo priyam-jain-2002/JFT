@@ -541,7 +541,7 @@ Orders + Trades -> integrity -> parser -> raw-event validation -> jiffy validati
 - [x] Preserve and decompose raw jiffies exactly; test the NSE example and fractional remainder; prove that NSE's published epoch constant differs from the actual UTC offset by exactly 19,800 seconds.
 - [ ] Resolve the jiffy epoch, then test independently known timestamps, day boundaries, timezone display, and ties before exposing UTC/session-date fields.
 - [ ] Profile per-stream monotonicity, equal-jiffy groups, overlap, and trade-reference timing before merge policy.
-- [ ] Implement explicit entry/modify/cancel reducer and anomaly classes; no silent repair.
+- [x] Implement a deterministic order-only entry/modify/cancel reducer: active-state replacement/removal, duplicate entry, unknown modify/cancel, and regressing-jiffy anomalies are explicit and never mutate state. Same-jiffy events follow caller-supplied order; cross-stream ordering, provenance orchestration, and trade-driven quantity semantics remain separate gates.
 - [ ] Reconstruct order- and price-level state by instrument/session; hash checkpoints/final state.
 - [ ] Join trades to both order IDs and test competing execution-decrement interpretations.
 - [ ] Separate `PO`, `RM`, `CA`; define transitions, halts, special sessions, and daily reset.
