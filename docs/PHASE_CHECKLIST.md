@@ -529,6 +529,7 @@ Orders + Trades -> integrity -> parser -> raw-event validation -> jiffy validati
 - [x] Strictly decode CM Full/Trim Order/Trade data and trigger filenames, optional two-digit positive streams, and DDMMYYYY dates while retaining `CM` versus `CASH` prefixes as distinct evidence; do not guess which documented prefix production uses.
 - [x] Discover a homogeneous split stream set from observed members without a fixed maximum; sort it and reject empty input, gaps, duplicates, mixed split/unsplit forms, or mixed prefix/product/date/kind/data-trigger metadata.
 - [x] Pair explicit data and trigger stream sets only when role, prefix, product, date, record kind, split mode, and observed members match exactly; report `CM`/`CASH` prefix conflicts rather than aliasing them.
+- [x] Orchestrate one decoded logical delivery by partitioning data/triggers, validating both stream sets, and pairing them while preserving nested missing-role, gap, group, form, member, and prefix-conflict evidence.
 - [x] Add non-licensed synthetic current Full Order/Trade fixtures and assert the exact bytes at every documented field boundary without claiming Full semantic validation.
 - [x] Inventory all current synthetic fixture sizes and complete-file SHA-256 digests (including LF), with an explicit non-NSE/non-representative provenance warning.
 - [ ] Freeze compressed inputs; verify trigger MD5/size, compute SHA-256, write manifest.

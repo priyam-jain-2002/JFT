@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-17 - Orchestrate one complete CM logical delivery
+
+- **Changed:** Added a delivery-level function that verifies one logical product/date/record-kind group, partitions data and triggers, validates each dynamic stream set, and performs exact pairing.
+- **Why:** Callers should not have to reimplement validation order or lose the causal error. A missing role, stream gap, logical mismatch, or prefix conflict must remain distinguishable before integrity checks begin.
+- **Validation:** Five new tests prove arbitrary member order succeeds and exact nested errors survive for empty/missing roles, mixed logical groups, a data-stream gap, and the `CM`/`CASH` prefix conflict. All 68 Rust tests pass; formatting, compilation, and strict Clippy pass.
+- **Related:** DEC-2026-008; Phase 1 delivery-discovery contract.
+- **Follow-up:** Deterministically partition a directory-sized decoded inventory into logical deliveries and report all groups without losing per-file parse failures.
+
+---
+
 ## 2026-10-17 - Require exact data/trigger stream-set pairing
 
 - **Changed:** Added typed pairing for validated data and trigger sets, requiring correct roles, the same documented prefix, logical product/date/kind identity, split form, and exact observed stream members.

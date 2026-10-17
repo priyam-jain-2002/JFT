@@ -132,6 +132,20 @@ pub enum CmPairingError {
     },
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CmDeliveryError {
+    Empty,
+    LogicalGroupMismatch {
+        expected: CmLogicalGroupKey,
+        actual: CmLogicalGroupKey,
+    },
+    MissingDataSet,
+    MissingTriggerSet,
+    InvalidDataSet(CmStreamSetError),
+    InvalidTriggerSet(CmStreamSetError),
+    Pairing(CmPairingError),
+}
+
 pub fn parse_cm_source_file_name(name: &str) -> Result<CmSourceFileName, CmFileNameError> {
     let (data_name, is_trigger) = match name.strip_suffix(".trg") {
         Some(data_name) => (data_name, true),
@@ -275,6 +289,38 @@ pub fn pair_cm_data_and_triggers(
         key: data_key,
         members,
     })
+}
+
+pub fn discover_cm_delivery(
+    files: &[CmSourceFileName],
+) -> Result<CmPairedStreamSet, CmDeliveryError> {
+    let first = *files.first().ok_or(CmDeliveryError::Empty)?;
+    let expected = CmLogicalGroupKey::from(CmFileGroupKey::from(first));
+
+    let mut data = Vec::new();
+    let mut triggers = Vec::new();
+    for file in files.iter().copied() {
+        let actual = CmLogicalGroupKey::from(CmFileGroupKey::from(file));
+        if actual != expected {
+            return Err(CmDeliveryError::LogicalGroupMismatch { expected, actual });
+        }
+        if file.is_trigger {
+            triggers.push(file);
+        } else {
+            data.push(file);
+        }
+    }
+
+    if data.is_empty() {
+        return Err(CmDeliveryError::MissingDataSet);
+    }
+    if triggers.is_empty() {
+        return Err(CmDeliveryError::MissingTriggerSet);
+    }
+
+    let data = discover_cm_stream_set(&data).map_err(CmDeliveryError::InvalidDataSet)?;
+    let triggers = discover_cm_stream_set(&triggers).map_err(CmDeliveryError::InvalidTriggerSet)?;
+    pair_cm_data_and_triggers(&data, &triggers).map_err(CmDeliveryError::Pairing)
 }
 
 fn parse_ddmmyyyy(value: &str) -> Result<SourceDate, CmFileNameError> {

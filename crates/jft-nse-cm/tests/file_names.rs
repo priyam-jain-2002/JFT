@@ -1,8 +1,9 @@
 use jft_nse_cm::layouts::{SourceDate, SourceDateError};
 use jft_nse_cm::manifest::{
-    CmFileGroupKey, CmFileNameError, CmFilePrefix, CmLogicalGroupKey, CmPairingError, CmProduct,
-    CmRecordKind, CmSourceFileName, CmStreamForm, CmStreamSet, CmStreamSetError,
-    discover_cm_stream_set, pair_cm_data_and_triggers, parse_cm_source_file_name,
+    CmDeliveryError, CmFileGroupKey, CmFileNameError, CmFilePrefix, CmLogicalGroupKey,
+    CmPairingError, CmProduct, CmRecordKind, CmSourceFileName, CmStreamForm, CmStreamSet,
+    CmStreamSetError, discover_cm_delivery, discover_cm_stream_set, pair_cm_data_and_triggers,
+    parse_cm_source_file_name,
 };
 
 fn parse_all(names: &[&str]) -> Vec<CmSourceFileName> {
@@ -299,5 +300,87 @@ fn rejects_reversed_data_and_trigger_roles() {
     assert_eq!(
         pair_cm_data_and_triggers(&data, &data),
         Err(CmPairingError::TriggerSetHasDataRole)
+    );
+}
+
+#[test]
+fn discovers_a_complete_delivery_from_arbitrary_member_order() {
+    let files = parse_all(&[
+        "CASH_Trades_T_18052026_02.DAT.gz.trg",
+        "CASH_Trades_T_18052026_01.DAT.gz",
+        "CASH_Trades_T_18052026_01.DAT.gz.trg",
+        "CASH_Trades_T_18052026_02.DAT.gz",
+    ]);
+
+    let delivery = discover_cm_delivery(&files).expect("complete paired delivery");
+    assert_eq!(delivery.prefix, CmFilePrefix::Cash);
+    assert_eq!(delivery.key.product, CmProduct::Trim);
+    assert_eq!(delivery.key.record_kind, CmRecordKind::Trades);
+    assert_eq!(delivery.members, vec![Some(1), Some(2)]);
+}
+
+#[test]
+fn delivery_rejects_empty_and_missing_roles() {
+    assert_eq!(discover_cm_delivery(&[]), Err(CmDeliveryError::Empty));
+
+    let only_data = parse_all(&["CASH_Orders_16062025_01.DAT.gz"]);
+    assert_eq!(
+        discover_cm_delivery(&only_data),
+        Err(CmDeliveryError::MissingTriggerSet)
+    );
+
+    let only_trigger = parse_all(&["CASH_Orders_16062025_01.DAT.gz.trg"]);
+    assert_eq!(
+        discover_cm_delivery(&only_trigger),
+        Err(CmDeliveryError::MissingDataSet)
+    );
+}
+
+#[test]
+fn delivery_rejects_mixed_logical_groups() {
+    let files = parse_all(&[
+        "CASH_Orders_16062025_01.DAT.gz",
+        "CASH_Trades_16062025_01.DAT.gz.trg",
+    ]);
+    let expected = CmLogicalGroupKey::from(CmFileGroupKey::from(files[0]));
+    let actual = CmLogicalGroupKey::from(CmFileGroupKey::from(files[1]));
+
+    assert_eq!(
+        discover_cm_delivery(&files),
+        Err(CmDeliveryError::LogicalGroupMismatch { expected, actual })
+    );
+}
+
+#[test]
+fn delivery_preserves_nested_stream_set_failure_evidence() {
+    let files = parse_all(&[
+        "CASH_Orders_16062025_01.DAT.gz",
+        "CASH_Orders_16062025_03.DAT.gz",
+        "CASH_Orders_16062025_01.DAT.gz.trg",
+        "CASH_Orders_16062025_02.DAT.gz.trg",
+        "CASH_Orders_16062025_03.DAT.gz.trg",
+    ]);
+
+    assert_eq!(
+        discover_cm_delivery(&files),
+        Err(CmDeliveryError::InvalidDataSet(
+            CmStreamSetError::MissingStream { stream: 2 }
+        ))
+    );
+}
+
+#[test]
+fn delivery_preserves_prefix_conflict_evidence() {
+    let files = parse_all(&[
+        "CM_Orders_T_18052026_01.DAT.gz",
+        "CASH_Orders_T_18052026_01.DAT.gz.trg",
+    ]);
+
+    assert_eq!(
+        discover_cm_delivery(&files),
+        Err(CmDeliveryError::Pairing(CmPairingError::PrefixMismatch {
+            data: CmFilePrefix::Cm,
+            trigger: CmFilePrefix::Cash,
+        }))
     );
 }
