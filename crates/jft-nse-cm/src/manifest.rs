@@ -146,6 +146,24 @@ pub enum CmDeliveryError {
     Pairing(CmPairingError),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CmDeliveryDiscovery {
+    pub key: CmLogicalGroupKey,
+    pub outcome: Result<CmPairedStreamSet, CmDeliveryError>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CmRejectedSourceFileName<'a> {
+    pub name: &'a str,
+    pub error: CmFileNameError,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CmInventoryDiscovery<'a> {
+    pub deliveries: Vec<CmDeliveryDiscovery>,
+    pub rejected_names: Vec<CmRejectedSourceFileName<'a>>,
+}
+
 pub fn parse_cm_source_file_name(name: &str) -> Result<CmSourceFileName, CmFileNameError> {
     let (data_name, is_trigger) = match name.strip_suffix(".trg") {
         Some(data_name) => (data_name, true),
@@ -321,6 +339,88 @@ pub fn discover_cm_delivery(
     let data = discover_cm_stream_set(&data).map_err(CmDeliveryError::InvalidDataSet)?;
     let triggers = discover_cm_stream_set(&triggers).map_err(CmDeliveryError::InvalidTriggerSet)?;
     pair_cm_data_and_triggers(&data, &triggers).map_err(CmDeliveryError::Pairing)
+}
+
+pub fn discover_cm_inventory<'a>(names: &[&'a str]) -> CmInventoryDiscovery<'a> {
+    let mut files = Vec::new();
+    let mut rejected_names = Vec::new();
+
+    for name in names {
+        match parse_cm_source_file_name(name) {
+            Ok(file) => files.push(file),
+            Err(error) => rejected_names.push(CmRejectedSourceFileName { name, error }),
+        }
+    }
+
+    files.sort_by(compare_source_file_names);
+    rejected_names.sort_by_key(|rejected| rejected.name);
+
+    let mut groups: Vec<(CmLogicalGroupKey, Vec<CmSourceFileName>)> = Vec::new();
+    for file in files {
+        let key = CmLogicalGroupKey::from(CmFileGroupKey::from(file));
+        match groups.last_mut() {
+            Some((last_key, group)) if *last_key == key => group.push(file),
+            _ => groups.push((key, vec![file])),
+        }
+    }
+
+    let deliveries = groups
+        .into_iter()
+        .map(|(key, files)| CmDeliveryDiscovery {
+            key,
+            outcome: discover_cm_delivery(&files),
+        })
+        .collect();
+
+    CmInventoryDiscovery {
+        deliveries,
+        rejected_names,
+    }
+}
+
+fn compare_source_file_names(
+    left: &CmSourceFileName,
+    right: &CmSourceFileName,
+) -> std::cmp::Ordering {
+    let left_key = CmLogicalGroupKey::from(CmFileGroupKey::from(*left));
+    let right_key = CmLogicalGroupKey::from(CmFileGroupKey::from(*right));
+    compare_logical_group_keys(&left_key, &right_key)
+        .then_with(|| left.is_trigger.cmp(&right.is_trigger))
+        .then_with(|| prefix_order(left.prefix).cmp(&prefix_order(right.prefix)))
+        .then_with(|| left.stream.cmp(&right.stream))
+}
+
+fn compare_logical_group_keys(
+    left: &CmLogicalGroupKey,
+    right: &CmLogicalGroupKey,
+) -> std::cmp::Ordering {
+    left.source_date
+        .cmp(&right.source_date)
+        .then_with(|| product_order(left.product).cmp(&product_order(right.product)))
+        .then_with(|| {
+            record_kind_order(left.record_kind).cmp(&record_kind_order(right.record_kind))
+        })
+}
+
+const fn prefix_order(prefix: CmFilePrefix) -> u8 {
+    match prefix {
+        CmFilePrefix::Cm => 0,
+        CmFilePrefix::Cash => 1,
+    }
+}
+
+const fn product_order(product: CmProduct) -> u8 {
+    match product {
+        CmProduct::Full => 0,
+        CmProduct::Trim => 1,
+    }
+}
+
+const fn record_kind_order(record_kind: CmRecordKind) -> u8 {
+    match record_kind {
+        CmRecordKind::Orders => 0,
+        CmRecordKind::Trades => 1,
+    }
 }
 
 fn parse_ddmmyyyy(value: &str) -> Result<SourceDate, CmFileNameError> {

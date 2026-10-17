@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-17 - Partition complete CM delivery inventories deterministically
+
+- **Changed:** Added dependency-free inventory discovery that parses arbitrary CM filenames, retains exact rejected names and reasons, sorts valid inputs canonically, partitions all date/product/record-kind groups, and returns an independent delivery outcome for each group in `O(n log n)` time.
+- **Why:** Filesystem order is not stable, and one malformed file or incomplete delivery must not hide evidence for other groups. Deterministic pre-sorting also prevents input order from reversing expected/actual values in nested errors.
+- **Validation:** Five new tests prove canonical ordering across three groups, good-group survival beside a bad group, exact sorted filename rejections, empty-inventory behavior, and identical results under reversed input including a mixed-prefix failure. All 73 Rust tests pass; formatting, compilation, strict Clippy, and diff checks pass.
+- **Related:** DEC-2026-008; Phase 1 delivery-discovery contract.
+- **Follow-up:** Add a filesystem boundary only after defining how paths, non-files, symlinks, and inaccessible entries are represented; keep it outside deterministic logical discovery.
+
+---
+
 ## 2026-10-17 - Orchestrate one complete CM logical delivery
 
 - **Changed:** Added a delivery-level function that verifies one logical product/date/record-kind group, partitions data and triggers, validates each dynamic stream set, and performs exact pairing.

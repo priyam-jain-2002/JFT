@@ -2,8 +2,8 @@ use jft_nse_cm::layouts::{SourceDate, SourceDateError};
 use jft_nse_cm::manifest::{
     CmDeliveryError, CmFileGroupKey, CmFileNameError, CmFilePrefix, CmLogicalGroupKey,
     CmPairingError, CmProduct, CmRecordKind, CmSourceFileName, CmStreamForm, CmStreamSet,
-    CmStreamSetError, discover_cm_delivery, discover_cm_stream_set, pair_cm_data_and_triggers,
-    parse_cm_source_file_name,
+    CmStreamSetError, discover_cm_delivery, discover_cm_inventory, discover_cm_stream_set,
+    pair_cm_data_and_triggers, parse_cm_source_file_name,
 };
 
 fn parse_all(names: &[&str]) -> Vec<CmSourceFileName> {
@@ -383,4 +383,118 @@ fn delivery_preserves_prefix_conflict_evidence() {
             trigger: CmFilePrefix::Cash,
         }))
     );
+}
+
+#[test]
+fn inventory_partitions_and_orders_multiple_deliveries_deterministically() {
+    let inventory = [
+        "CASH_Trades_T_18052026.DAT.gz.trg",
+        "CASH_Orders_16062025.DAT.gz",
+        "CASH_Trades_T_18052026.DAT.gz",
+        "CASH_Orders_16062025.DAT.gz.trg",
+        "CASH_Trades_16062025.DAT.gz.trg",
+        "CASH_Trades_16062025.DAT.gz",
+    ];
+
+    let discovery = discover_cm_inventory(&inventory);
+    let keys = discovery
+        .deliveries
+        .iter()
+        .map(|delivery| delivery.key)
+        .collect::<Vec<_>>();
+
+    assert_eq!(discovery.rejected_names, vec![]);
+    assert!(discovery.deliveries.iter().all(|item| item.outcome.is_ok()));
+    assert_eq!(keys[0].source_date, SourceDate::new(2025, 6, 16).unwrap());
+    assert_eq!(keys[0].product, CmProduct::Full);
+    assert_eq!(keys[0].record_kind, CmRecordKind::Orders);
+    assert_eq!(keys[1].source_date, SourceDate::new(2025, 6, 16).unwrap());
+    assert_eq!(keys[1].product, CmProduct::Full);
+    assert_eq!(keys[1].record_kind, CmRecordKind::Trades);
+    assert_eq!(keys[2].source_date, SourceDate::new(2026, 5, 18).unwrap());
+    assert_eq!(keys[2].product, CmProduct::Trim);
+    assert_eq!(keys[2].record_kind, CmRecordKind::Trades);
+}
+
+#[test]
+fn inventory_reports_a_bad_group_without_hiding_a_good_group() {
+    let inventory = [
+        "CASH_Orders_16062025.DAT.gz",
+        "CASH_Trades_16062025.DAT.gz",
+        "CASH_Trades_16062025.DAT.gz.trg",
+    ];
+
+    let discovery = discover_cm_inventory(&inventory);
+    assert_eq!(discovery.deliveries.len(), 2);
+    assert_eq!(
+        discovery.deliveries[0].outcome,
+        Err(CmDeliveryError::MissingTriggerSet)
+    );
+    assert!(discovery.deliveries[1].outcome.is_ok());
+}
+
+#[test]
+fn inventory_retains_and_sorts_every_rejected_file_name() {
+    let inventory = [
+        "Z_BAD.DAT.gz",
+        "CASH_Orders_31022025.DAT.gz",
+        "CASH_Orders_16062025.DAT.gz.trg",
+        "CASH_Orders_16062025.DAT.gz",
+        "A_BAD",
+    ];
+
+    let discovery = discover_cm_inventory(&inventory);
+    let rejected = discovery
+        .rejected_names
+        .iter()
+        .map(|item| (item.name, item.error))
+        .collect::<Vec<_>>();
+
+    assert_eq!(discovery.deliveries.len(), 1);
+    assert!(discovery.deliveries[0].outcome.is_ok());
+    assert_eq!(
+        rejected,
+        vec![
+            ("A_BAD", CmFileNameError::MissingDataSuffix),
+            (
+                "CASH_Orders_31022025.DAT.gz",
+                CmFileNameError::InvalidDate(SourceDateError::InvalidDay {
+                    year: 2025,
+                    month: 2,
+                    day: 31,
+                    maximum: 28,
+                })
+            ),
+            ("Z_BAD.DAT.gz", CmFileNameError::UnknownPrefix),
+        ]
+    );
+}
+
+#[test]
+fn inventory_result_is_identical_when_input_order_is_reversed() {
+    let inventory = [
+        "CASH_Orders_16062025_02.DAT.gz.trg",
+        "CM_Trades_T_18052026_01.DAT.gz",
+        "CASH_Orders_16062025_01.DAT.gz",
+        "NOT_CM.gz",
+        "CASH_Orders_16062025_01.DAT.gz.trg",
+        "CM_Trades_T_18052026_01.DAT.gz.trg",
+        "CASH_Orders_16062025_02.DAT.gz",
+        "CASH_Trades_T_18052026_01.DAT.gz",
+    ];
+    let mut reversed = inventory;
+    reversed.reverse();
+
+    assert_eq!(
+        discover_cm_inventory(&inventory),
+        discover_cm_inventory(&reversed)
+    );
+}
+
+#[test]
+fn empty_inventory_has_no_deliveries_or_rejections() {
+    let discovery = discover_cm_inventory(&[]);
+
+    assert_eq!(discovery.deliveries, vec![]);
+    assert_eq!(discovery.rejected_names, vec![]);
 }
