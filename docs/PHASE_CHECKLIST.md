@@ -808,10 +808,11 @@ Stop the engineering project or alpha path if, after a predeclared remediation a
 
 ## 14. Immediate next actions
 
-1. Consult and freeze the Phase 1 canonical schema, compatibility policy, Rust parser interfaces, error taxonomy, deterministic event keys, and byte-accounting rules; the Rust/Python ownership boundary itself is already frozen.
-2. Expand the synthetic, non-licensed golden fixtures from the verified entry/trade slice to remaining side/activity/session combinations, timestamp edges, and malformed-input classes before lifecycle work.
-3. Implement date/version-aware layout validation, exact raw-jiffy handling, validation-gated timestamp conversion, and quarantine behavior before book logic.
-4. Use the qualified public legacy sample only for legacy-width parser and incomplete-replay tests; do not treat it as representative market evidence.
-5. Add current paired CM Trim files/triggers when available and resolve streams, ties, modify/cancel quantities, and trade reductions before Phase 1 acceptance.
-6. Keep legal/compliance as an external “needs to be done” marker; it must not block offline repository engineering and the repository must not claim clearance.
-7. Do not begin Phase 2 features or models before the deterministic replay gate passes on representative current data.
+1. Obtain the approved data/compute budget and representative paired current CM Trim Order/Trade data plus triggers across ordinary, volatile, Pre-Open, Regular Market, and Closing Auction conditions. Do not use synthetic or legacy files as a substitute for this gate.
+2. Run the implemented content-signature, inventory, framing, parser, raw-jiffy, independent replay, trade-candidate, session-count, cross-session dossier, route, and observation-taxonomy reports across every validated member. Reconcile all counts, residue, quantity, notional, and source coverage before interpreting anomalies.
+3. Use representative evidence to resolve stream/equal-jiffy ordering, session reset/carry, modify/cancel quantity meaning, trade-driven quantity semantics, signed encoding, Full Trigger/Limit conditional rules, and the 19,800-second jiffy-epoch discrepancy. Preserve ambiguity and request vendor clarification where evidence cannot decide.
+4. Review and activate or amend proposed [DEC-2026-009](decisions/DECISION_LOG.md#dec-2026-009) before implementing canonical manifest identity, compatibility guarantees, durable transition serialization, hashes, or new hashing/JSON dependencies. The Rust/Python ownership boundary remains frozen independently.
+5. After ordering is evidenced and DEC-2026-009 is active, implement fallible canonical transition output, deterministic checkpoint/final-state hashes, and the Python canonical-data reader/conformance suite. Python must not read raw NSE Order/Trade bytes or reproduce the authoritative book.
+6. Use the qualified public legacy sample only for legacy-width framing/field-domain evidence and incomplete-replay tests; do not treat it as representative current-market or delivery evidence.
+7. Keep legal/compliance as an external “needs to be done” marker; it must not block offline repository engineering, and the repository must not claim operational clearance.
+8. Do not begin Phase 2 features or models before deterministic replay passes the representative-data acceptance gate and the remaining semantic decisions are recorded.

@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-18 - Replace stale Phase 1 immediate actions
+
+- **Changed:** The governing document's immediate-action list now reflects the implemented fixture-first parser, replay, book, jiffy, session, and evidence-reporting work. The ordered next gates are representative current paired data/triggers, full reconciliation runs, ambiguity resolution, owner review of proposed DEC-2026-009, then canonical output/hashes and the Python conformance reader.
+- **Why:** The previous list still instructed the project to implement layout, jiffy, quarantine, fixture, and lifecycle foundations that already exist and are verified. Leaving it in place contradicted the phase checklist and could cause duplicated or out-of-order work.
+- **Validation:** Every new action cross-references an existing unchecked gate or proposed decision in this document; completed fixture-first work is no longer presented as pending. Markdown whitespace validation passes.
+- **Related:** Phase 0 acquisition/budget gates; Phase 1 unchecked acceptance items; proposed DEC-2026-009.
+- **Follow-up:** Update this list when representative data is acquired or DEC-2026-009 changes status.
+
+---
+
 ## 2026-10-18 - Retain raw-jiffy relations in session routes
 
 - **Changed:** Every cross-session operation/session route now separates entry candidates whose raw exchange jiffy is before, equal to, or after the rejected lifecycle event. A reconciliation invariant requires those three counts to equal the route's entry-candidate total and requires each emitted route to contain at least one event and candidate.
