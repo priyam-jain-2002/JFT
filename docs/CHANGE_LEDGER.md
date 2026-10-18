@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-18 - Measure candidate entry jiffies against Trades
+
+- **Changed:** Preserved the exact raw entry jiffy in Order-entry evidence and extended candidate diagnostics with entry-before, equal-jiffy, and entry-after-Trade counts. The count invariant now requires those three raw relations to reconcile to every observed candidate.
+- **Why:** Representative-data merge decisions need direct evidence about whether referenced entries numerically precede, tie, or follow their Trades. Raw comparison is useful without converting to UTC or pretending equal jiffies establish event order.
+- **Validation:** A dedicated three-stream test proves one candidate in each before/equal/after category from deliberately unsorted sources. Existing missing, multiplicity, side, and raw-stream tests now also prove their exact timing counts. All 148 default Rust tests pass.
+- **Related:** DEC-2026-008; Phase 1 raw-jiffy and trade-reference timing gates.
+- **Follow-up:** Measure these relations on representative paired current Trim data; consult before defining equal-jiffy tie-breaking, global merge order, or trade-driven quantity effects.
+
+---
+
 ## 2026-10-18 - Bind raw Trade diagnostics to delivery identity
 
 - **Changed:** Retained the validated paired-delivery descriptor on independent Order stream replays and added per-member raw Trim Trade profiling against those replays. The profiler validates Trade source coverage, rejects Order/Trade prefix or date mismatch, preserves parsing quarantine and framing residue, and emits reconciled candidate diagnostics per independent Trade stream.

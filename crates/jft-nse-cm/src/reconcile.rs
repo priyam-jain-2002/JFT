@@ -32,6 +32,7 @@ pub struct ActiveOrderProvenance {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OrderEntryEvidence {
     pub side: Side,
+    pub exchange_jiffy: ExchangeJiffy,
     pub coordinate: SourceCoordinate,
 }
 
@@ -122,6 +123,9 @@ pub struct TradeOrderCandidateProfile {
     pub multiple_candidate_references: usize,
     pub expected_side_candidates: usize,
     pub side_mismatch_candidates: usize,
+    pub entry_before_trade_candidates: usize,
+    pub entry_equal_trade_candidates: usize,
+    pub entry_after_trade_candidates: usize,
     pub maximum_candidates_per_reference: usize,
 }
 
@@ -142,6 +146,11 @@ impl TradeOrderCandidateProfile {
             && self
                 .expected_side_candidates
                 .checked_add(self.side_mismatch_candidates)
+                == Some(self.candidate_count)
+            && self
+                .entry_before_trade_candidates
+                .checked_add(self.entry_equal_trade_candidates)
+                .and_then(|count| count.checked_add(self.entry_after_trade_candidates))
                 == Some(self.candidate_count)
             && minimum_candidate_count.is_some_and(|minimum| minimum <= self.candidate_count)
             && self.maximum_candidates_per_reference <= self.candidate_count
@@ -487,6 +496,7 @@ fn update_active_provenance(
                 key,
                 OrderEntryEvidence {
                     side: current.side,
+                    exchange_jiffy: current.entry_jiffy,
                     coordinate,
                 },
             );
@@ -535,8 +545,8 @@ pub fn profile_trim_trade_stream_candidates<'a>(
     for trade in trades {
         profile.trade_count += 1;
         let candidates = collect_trim_trade_stream_candidates(orders, trade);
-        observe_candidate_reference(&mut profile, &candidates.buy);
-        observe_candidate_reference(&mut profile, &candidates.sell);
+        observe_candidate_reference(&mut profile, &candidates.buy, trade.exchange_jiffy);
+        observe_candidate_reference(&mut profile, &candidates.sell, trade.exchange_jiffy);
     }
 
     profile
@@ -545,6 +555,7 @@ pub fn profile_trim_trade_stream_candidates<'a>(
 fn observe_candidate_reference(
     profile: &mut TradeOrderCandidateProfile,
     reference: &StreamOrderSourceCandidates,
+    trade_jiffy: ExchangeJiffy,
 ) {
     profile.reference_count += 1;
     profile.candidate_count += reference.candidates.len();
@@ -563,6 +574,11 @@ fn observe_candidate_reference(
             profile.expected_side_candidates += 1;
         } else {
             profile.side_mismatch_candidates += 1;
+        }
+        match candidate.entry.exchange_jiffy.cmp(&trade_jiffy) {
+            std::cmp::Ordering::Less => profile.entry_before_trade_candidates += 1,
+            std::cmp::Ordering::Equal => profile.entry_equal_trade_candidates += 1,
+            std::cmp::Ordering::Greater => profile.entry_after_trade_candidates += 1,
         }
     }
 }
@@ -840,8 +856,16 @@ fn profile_trim_trade_candidate_source<'a>(
         profile.parsed_records += 1;
         let candidates = collect_trim_trade_stream_candidates(orders, &parsed.event);
         profile.candidates.trade_count += 1;
-        observe_candidate_reference(&mut profile.candidates, &candidates.buy);
-        observe_candidate_reference(&mut profile.candidates, &candidates.sell);
+        observe_candidate_reference(
+            &mut profile.candidates,
+            &candidates.buy,
+            parsed.event.exchange_jiffy,
+        );
+        observe_candidate_reference(
+            &mut profile.candidates,
+            &candidates.sell,
+            parsed.event.exchange_jiffy,
+        );
     }
 
     profile

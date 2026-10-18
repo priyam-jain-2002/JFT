@@ -72,6 +72,7 @@ fn matches_both_trade_sides_to_exact_entry_coordinates() {
                     record_index: 0,
                     byte_offset: 0,
                 },
+                ..
             },
             ..
         }
@@ -85,6 +86,7 @@ fn matches_both_trade_sides_to_exact_entry_coordinates() {
                     record_index: 1,
                     byte_offset,
                 },
+                ..
             },
             ..
         } if byte_offset == TRIM_ORDER_RECORD_LEN + 1
@@ -285,6 +287,9 @@ fn profiles_missing_and_unique_references_without_temporal_claims() {
     assert_eq!(profile.multiple_candidate_references, 0);
     assert_eq!(profile.expected_side_candidates, 1);
     assert_eq!(profile.side_mismatch_candidates, 0);
+    assert_eq!(profile.entry_before_trade_candidates, 1);
+    assert_eq!(profile.entry_equal_trade_candidates, 0);
+    assert_eq!(profile.entry_after_trade_candidates, 0);
     assert_eq!(profile.maximum_candidates_per_reference, 1);
     assert!(profile.counts_reconcile());
 }
@@ -321,7 +326,43 @@ fn profiles_multiple_and_side_mismatched_candidates_separately() {
     assert_eq!(profile.multiple_candidate_references, 1);
     assert_eq!(profile.expected_side_candidates, 2);
     assert_eq!(profile.side_mismatch_candidates, 1);
+    assert_eq!(profile.entry_before_trade_candidates, 2);
+    assert_eq!(profile.entry_equal_trade_candidates, 1);
+    assert_eq!(profile.entry_after_trade_candidates, 0);
     assert_eq!(profile.maximum_candidates_per_reference, 2);
+    assert!(profile.counts_reconcile());
+}
+
+#[test]
+fn profiles_entry_jiffy_relation_without_resolving_equal_jiffies() {
+    let mut equal = ENTRY_FIXTURE.to_vec();
+    equal[22..36].copy_from_slice(b"91200611817222");
+    let mut after = ENTRY_FIXTURE.to_vec();
+    after[22..36].copy_from_slice(b"91200611817223");
+    let sources = [
+        CmStreamSource {
+            member: Some(3),
+            source: &after,
+        },
+        CmStreamSource {
+            member: Some(1),
+            source: ENTRY_FIXTURE,
+        },
+        CmStreamSource {
+            member: Some(2),
+            source: &equal,
+        },
+    ];
+    let mut delivery = split_order_delivery();
+    delivery.members = vec![Some(1), Some(2), Some(3)];
+    let orders = replay_trim_order_stream_set(&delivery, &sources).expect("independent replay");
+    let event = trade();
+    let profile = profile_trim_trade_stream_candidates(&orders, [&event]);
+
+    assert_eq!(profile.candidate_count, 3);
+    assert_eq!(profile.entry_before_trade_candidates, 1);
+    assert_eq!(profile.entry_equal_trade_candidates, 1);
+    assert_eq!(profile.entry_after_trade_candidates, 1);
     assert!(profile.counts_reconcile());
 }
 
@@ -389,6 +430,9 @@ fn profiles_each_raw_trade_stream_independently_in_member_order() {
         assert_eq!(stream.source.candidates.reference_count, 2);
         assert_eq!(stream.source.candidates.single_candidate_references, 2);
         assert_eq!(stream.source.candidates.expected_side_candidates, 2);
+        assert_eq!(stream.source.candidates.entry_before_trade_candidates, 1);
+        assert_eq!(stream.source.candidates.entry_equal_trade_candidates, 1);
+        assert_eq!(stream.source.candidates.entry_after_trade_candidates, 0);
         assert!(stream.source.quarantines.is_empty());
         assert!(stream.source.framing_error.is_none());
     }
