@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use crate::book::{BookProjectionError, OrderBookProjection};
-use crate::events::{OrderEvent, Session, Side, TradeEvent};
+use crate::events::{MarketSegment, OrderEvent, Session, Side, TradeEvent};
 use crate::framing::{FixedWidthLfRecords, FramingError, FramingProfile, profile_fixed_width_lf};
 use crate::jiffy::ExchangeJiffy;
 use crate::layouts::{
@@ -431,6 +431,38 @@ pub struct TrimOrderStreamSetReplay<'a> {
     pub streams: Vec<TrimOrderStreamReplay<'a>>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct SessionExcludedOrderIdentity {
+    pub segment: MarketSegment,
+    pub symbol_raw: [u8; 10],
+    pub series_raw: [u8; 2],
+    pub order_number: u64,
+}
+
+impl From<&OrderKey> for SessionExcludedOrderIdentity {
+    fn from(key: &OrderKey) -> Self {
+        Self {
+            segment: key.segment,
+            symbol_raw: key.symbol_raw,
+            series_raw: key.series_raw,
+            order_number: key.order_number,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SessionOrderEntryOccurrence {
+    pub member: Option<u8>,
+    pub session: Session,
+    pub entry: OrderEntryEvidence,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CrossSessionOrderEntryEvidence {
+    pub identity: SessionExcludedOrderIdentity,
+    pub occurrences: Vec<SessionOrderEntryOccurrence>,
+}
+
 impl TrimOrderStreamSetReplay<'_> {
     #[must_use]
     pub fn counts_reconcile(&self) -> bool {
@@ -452,6 +484,49 @@ impl TrimOrderStreamSetReplay<'_> {
                 OrderReplaySummary::default(),
                 OrderReplaySummary::checked_merge,
             )
+    }
+
+    /// Reports successful entry evidence whose exact non-session fields occur
+    /// under more than one session code. This is occurrence evidence only: it
+    /// does not imply that the exchange carried one lifecycle across sessions.
+    #[must_use]
+    pub fn cross_session_entry_evidence(&self) -> Vec<CrossSessionOrderEntryEvidence> {
+        let mut grouped =
+            BTreeMap::<SessionExcludedOrderIdentity, Vec<SessionOrderEntryOccurrence>>::new();
+
+        for stream in &self.streams {
+            for (key, entry) in &stream.replay.order_entries {
+                grouped
+                    .entry(SessionExcludedOrderIdentity::from(key))
+                    .or_default()
+                    .push(SessionOrderEntryOccurrence {
+                        member: stream.member,
+                        session: key.session,
+                        entry: *entry,
+                    });
+            }
+        }
+
+        grouped
+            .into_iter()
+            .filter_map(|(identity, mut occurrences)| {
+                occurrences.sort_by_key(|occurrence| {
+                    (
+                        occurrence.session,
+                        occurrence.member,
+                        occurrence.entry.coordinate,
+                    )
+                });
+                let first_session = occurrences.first()?.session;
+                occurrences
+                    .iter()
+                    .any(|occurrence| occurrence.session != first_session)
+                    .then_some(CrossSessionOrderEntryEvidence {
+                        identity,
+                        occurrences,
+                    })
+            })
+            .collect()
     }
 }
 

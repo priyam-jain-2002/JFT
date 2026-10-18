@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-18 - Report session-excluded successful-entry occurrences
+
+- **Changed:** Independent Order stream replay can now group successful entry evidence by exact segment/raw-symbol/raw-series/order-number fields while excluding session, and report only identities observed under more than one session code. Every occurrence retains session, stream member, side, raw jiffy, and source coordinate in deterministic order.
+- **Why:** Representative delivery analysis needs a direct way to locate possible cross-session identity reuse before deciding whether sessions reset, isolate, or carry any lifecycle state.
+- **Validation:** A synthetic integration test proves one exact identity is reported across `PO`, `RM`, and `CA`, proves a different identity repeated only within `RM` is excluded, preserves leading raw symbol padding and exact provenance, and returns the same report when caller source order is reversed. All 159 default Rust tests pass.
+- **Related:** DEC-2026-008; Phase 1 session-validation gate.
+- **Follow-up:** Run this report on representative current paired Trim deliveries. An occurrence across sessions is not evidence of lifecycle continuation; session transition/reset/carry semantics remain unresolved and consultation-gated.
+
+---
+
 ## 2026-10-18 - Enforce per-source Order session reconciliation
 
 - **Changed:** The Order source replay invariant now requires its `PO`/`RM`/`CA` total to equal its parsed-record count, matching the already-enforced combined Order and per-source Trade invariants.

@@ -1,9 +1,13 @@
-use jft_nse_cm::layouts::SourceDate;
+use jft_nse_cm::events::{MarketSegment, Session, Side};
+use jft_nse_cm::jiffy::ExchangeJiffy;
+use jft_nse_cm::layouts::{SourceDate, TRIM_ORDER_RECORD_LEN};
 use jft_nse_cm::manifest::{
     CmFilePrefix, CmLogicalGroupKey, CmPairedStreamSet, CmProduct, CmRecordKind,
 };
 use jft_nse_cm::reconcile::{
-    CmStreamSource, CmStreamSourceSetError, JiffyStreamRangeOverlap, OrderTradeJiffyRangeOverlap,
+    CmStreamSource, CmStreamSourceSetError, CrossSessionOrderEntryEvidence,
+    JiffyStreamRangeOverlap, OrderEntryEvidence, OrderTradeJiffyRangeOverlap,
+    SessionExcludedOrderIdentity, SessionOrderEntryOccurrence, SourceCoordinate,
     TradeCandidateStreamSetError, TrimEvidenceObservation, TrimEvidenceObservationKind,
     TrimOrderTradeEvidenceError, profile_trim_order_trade_evidence,
 };
@@ -450,4 +454,114 @@ fn counts_every_documented_session_without_defining_transitions() {
     assert_eq!(evidence.trades.combined_session_counts.pre_open, 1);
     assert_eq!(evidence.trades.combined_session_counts.regular_market, 1);
     assert_eq!(evidence.trades.combined_session_counts.closing_auction, 1);
+}
+
+#[test]
+fn reports_cross_session_entry_occurrences_without_claiming_lifecycle_carry() {
+    let date = source_date(18);
+    let order_delivery = delivery(CmRecordKind::Orders, date);
+    let trade_delivery = delivery(CmRecordKind::Trades, date);
+
+    let mut pre_open = ENTRY_FIXTURE.to_vec();
+    pre_open[0..2].copy_from_slice(b"PO");
+    let same_session_only = sell_entry();
+    let member_one_orders = [
+        ENTRY_FIXTURE,
+        pre_open.as_slice(),
+        same_session_only.as_slice(),
+    ]
+    .concat();
+    let mut closing_auction = ENTRY_FIXTURE.to_vec();
+    closing_auction[0..2].copy_from_slice(b"CA");
+    let member_two_orders = [closing_auction.as_slice(), same_session_only.as_slice()].concat();
+    let order_sources = [
+        CmStreamSource {
+            member: Some(2),
+            source: &member_two_orders,
+        },
+        CmStreamSource {
+            member: Some(1),
+            source: &member_one_orders,
+        },
+    ];
+    let trade_sources = [
+        CmStreamSource {
+            member: Some(2),
+            source: b"",
+        },
+        CmStreamSource {
+            member: Some(1),
+            source: b"",
+        },
+    ];
+
+    let evidence = profile_trim_order_trade_evidence(
+        &order_delivery,
+        &order_sources,
+        &trade_delivery,
+        &trade_sources,
+    )
+    .expect("delivery evidence");
+    let reversed = profile_trim_order_trade_evidence(
+        &order_delivery,
+        &[order_sources[1], order_sources[0]],
+        &trade_delivery,
+        &[trade_sources[1], trade_sources[0]],
+    )
+    .expect("reversed delivery evidence");
+
+    assert!(evidence.counts_reconcile());
+    assert_eq!(
+        evidence.orders.cross_session_entry_evidence(),
+        reversed.orders.cross_session_entry_evidence()
+    );
+    assert_eq!(
+        evidence.orders.cross_session_entry_evidence(),
+        vec![CrossSessionOrderEntryEvidence {
+            identity: SessionExcludedOrderIdentity {
+                segment: MarketSegment::Cash,
+                symbol_raw: *b"  RELIANCE",
+                series_raw: *b"EQ",
+                order_number: 1,
+            },
+            occurrences: vec![
+                SessionOrderEntryOccurrence {
+                    member: Some(1),
+                    session: Session::PreOpen,
+                    entry: OrderEntryEvidence {
+                        side: Side::Buy,
+                        exchange_jiffy: ExchangeJiffy::new(91_200_611_817_221),
+                        coordinate: SourceCoordinate {
+                            record_index: 1,
+                            byte_offset: TRIM_ORDER_RECORD_LEN + 1,
+                        },
+                    },
+                },
+                SessionOrderEntryOccurrence {
+                    member: Some(1),
+                    session: Session::RegularMarket,
+                    entry: OrderEntryEvidence {
+                        side: Side::Buy,
+                        exchange_jiffy: ExchangeJiffy::new(91_200_611_817_221),
+                        coordinate: SourceCoordinate {
+                            record_index: 0,
+                            byte_offset: 0,
+                        },
+                    },
+                },
+                SessionOrderEntryOccurrence {
+                    member: Some(2),
+                    session: Session::ClosingAuction,
+                    entry: OrderEntryEvidence {
+                        side: Side::Buy,
+                        exchange_jiffy: ExchangeJiffy::new(91_200_611_817_221),
+                        coordinate: SourceCoordinate {
+                            record_index: 0,
+                            byte_offset: 0,
+                        },
+                    },
+                },
+            ],
+        }]
+    );
 }
