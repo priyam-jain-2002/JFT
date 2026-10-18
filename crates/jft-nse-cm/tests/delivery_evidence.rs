@@ -5,7 +5,8 @@ use jft_nse_cm::manifest::{
     CmFilePrefix, CmLogicalGroupKey, CmPairedStreamSet, CmProduct, CmRecordKind,
 };
 use jft_nse_cm::reconcile::{
-    CmStreamSource, CmStreamSourceSetError, CrossSessionOrderEntryEvidence,
+    CmStreamSource, CmStreamSourceSetError, CrossSessionLifecycleOperation,
+    CrossSessionLifecycleRoute, CrossSessionLifecycleRouteCount, CrossSessionOrderEntryEvidence,
     JiffyStreamRangeOverlap, OrderEntryEvidence, OrderTradeJiffyRangeOverlap,
     SessionExcludedOrderIdentity, SessionOrderEntryOccurrence, SourceCoordinate,
     TradeCandidateStreamSetError, TrimEvidenceObservation, TrimEvidenceObservationKind,
@@ -722,8 +723,84 @@ fn reports_cross_session_lifecycle_candidates_without_applying_them() {
             },
         ]
     );
+    assert_eq!(
+        evidence.orders.cross_session_lifecycle_route_counts(),
+        vec![
+            CrossSessionLifecycleRouteCount {
+                route: CrossSessionLifecycleRoute {
+                    operation: CrossSessionLifecycleOperation::Modify,
+                    anomaly_session: Session::PreOpen,
+                    candidate_entry_session: Session::RegularMarket,
+                },
+                candidate_event_count: 1,
+                entry_candidate_count: 1,
+            },
+            CrossSessionLifecycleRouteCount {
+                route: CrossSessionLifecycleRoute {
+                    operation: CrossSessionLifecycleOperation::Cancel,
+                    anomaly_session: Session::ClosingAuction,
+                    candidate_entry_session: Session::RegularMarket,
+                },
+                candidate_event_count: 1,
+                entry_candidate_count: 1,
+            },
+        ]
+    );
 
     let regular_market_unknown = &evidence.orders.streams[1].replay.lifecycle_anomalies[0];
     assert_eq!(regular_market_unknown.event.session, Session::RegularMarket);
     assert_eq!(regular_market_unknown.event.activity, OrderActivity::Modify);
+}
+
+#[test]
+fn route_counts_distinguish_candidate_events_from_entry_multiplicity() {
+    let date = source_date(18);
+    let order_delivery = delivery(CmRecordKind::Orders, date);
+    let trade_delivery = delivery(CmRecordKind::Trades, date);
+
+    let mut pre_open_modify = MODIFY_FIXTURE.to_vec();
+    pre_open_modify[0..2].copy_from_slice(b"PO");
+    let member_one_orders = [ENTRY_FIXTURE, pre_open_modify.as_slice()].concat();
+    let order_sources = [
+        CmStreamSource {
+            member: Some(2),
+            source: ENTRY_FIXTURE,
+        },
+        CmStreamSource {
+            member: Some(1),
+            source: &member_one_orders,
+        },
+    ];
+    let trade_sources = [
+        CmStreamSource {
+            member: Some(2),
+            source: b"",
+        },
+        CmStreamSource {
+            member: Some(1),
+            source: b"",
+        },
+    ];
+
+    let evidence = profile_trim_order_trade_evidence(
+        &order_delivery,
+        &order_sources,
+        &trade_delivery,
+        &trade_sources,
+    )
+    .expect("delivery evidence");
+
+    assert!(evidence.counts_reconcile());
+    assert_eq!(
+        evidence.orders.cross_session_lifecycle_route_counts(),
+        vec![CrossSessionLifecycleRouteCount {
+            route: CrossSessionLifecycleRoute {
+                operation: CrossSessionLifecycleOperation::Modify,
+                anomaly_session: Session::PreOpen,
+                candidate_entry_session: Session::RegularMarket,
+            },
+            candidate_event_count: 1,
+            entry_candidate_count: 2,
+        }]
+    );
 }

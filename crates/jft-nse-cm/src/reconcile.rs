@@ -470,6 +470,26 @@ pub struct CrossSessionLifecycleCandidateEvidence {
     pub other_session_entries: Vec<SessionOrderEntryOccurrence>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum CrossSessionLifecycleOperation {
+    Modify,
+    Cancel,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct CrossSessionLifecycleRoute {
+    pub operation: CrossSessionLifecycleOperation,
+    pub anomaly_session: Session,
+    pub candidate_entry_session: Session,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CrossSessionLifecycleRouteCount {
+    pub route: CrossSessionLifecycleRoute,
+    pub candidate_event_count: usize,
+    pub entry_candidate_count: usize,
+}
+
 impl TrimOrderStreamSetReplay<'_> {
     #[must_use]
     pub fn counts_reconcile(&self) -> bool {
@@ -553,6 +573,49 @@ impl TrimOrderStreamSetReplay<'_> {
         }
 
         candidates
+    }
+
+    /// Aggregates candidate dossiers by rejected operation and session route.
+    /// Event count is distinct from entry-candidate count because one rejected
+    /// event can have matching entry evidence in multiple independent streams.
+    #[must_use]
+    pub fn cross_session_lifecycle_route_counts(&self) -> Vec<CrossSessionLifecycleRouteCount> {
+        let mut routes = BTreeMap::<CrossSessionLifecycleRoute, (usize, usize)>::new();
+
+        for candidate in self.cross_session_lifecycle_candidates() {
+            let operation = match candidate.anomaly.anomaly {
+                LifecycleAnomaly::UnknownModify { .. } => CrossSessionLifecycleOperation::Modify,
+                LifecycleAnomaly::UnknownCancel { .. } => CrossSessionLifecycleOperation::Cancel,
+                LifecycleAnomaly::DuplicateEntry { .. }
+                | LifecycleAnomaly::RegressingJiffy { .. } => continue,
+            };
+            let mut entries_by_session = BTreeMap::<Session, usize>::new();
+            for entry in candidate.other_session_entries {
+                *entries_by_session.entry(entry.session).or_default() += 1;
+            }
+
+            for (candidate_entry_session, entry_candidate_count) in entries_by_session {
+                let route = CrossSessionLifecycleRoute {
+                    operation,
+                    anomaly_session: candidate.anomaly.event.session,
+                    candidate_entry_session,
+                };
+                let counts = routes.entry(route).or_default();
+                counts.0 += 1;
+                counts.1 += entry_candidate_count;
+            }
+        }
+
+        routes
+            .into_iter()
+            .map(|(route, (candidate_event_count, entry_candidate_count))| {
+                CrossSessionLifecycleRouteCount {
+                    route,
+                    candidate_event_count,
+                    entry_candidate_count,
+                }
+            })
+            .collect()
     }
 
     fn session_excluded_entry_occurrences(

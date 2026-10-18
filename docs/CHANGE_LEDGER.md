@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-18 - Aggregate cross-session candidate routes
+
+- **Changed:** Cross-session lifecycle dossiers now aggregate deterministically by rejected operation, rejected-event session, and candidate-entry session. Each route keeps separate candidate-event and entry-candidate counts so duplicate entry evidence across independent streams is not mistaken for multiple rejected events.
+- **Why:** Representative analysis needs route-specific measurements such as Pre-Open modify to Regular Market entry, while preserving the distinction between event frequency and source multiplicity.
+- **Validation:** Exact integration assertions cover Pre-Open modify and Closing Auction cancel routes to Regular Market. A separate two-stream test proves one rejected event with two independent entry candidates yields event count 1 and entry-candidate count 2. All 161 default Rust tests pass.
+- **Related:** The cross-session dossier and observation-taxonomy entries below; Phase 1 session-validation metrics.
+- **Follow-up:** Run route aggregation on representative current paired Trim deliveries; use the retained dossiers for timing review before interpreting any route as lifecycle carry.
+
+---
+
 ## 2026-10-18 - Surface cross-session candidates in the observation taxonomy
 
 - **Changed:** The composed Trim evidence taxonomy now emits a nonzero `OrderCrossSessionLifecycleCandidate` count per Order stream, derived from the retained cross-session lifecycle candidate dossiers.
