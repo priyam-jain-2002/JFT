@@ -387,7 +387,12 @@ impl TrimOrderStreamSetReplay<'_> {
     pub fn counts_reconcile(&self) -> bool {
         self.streams
             .iter()
-            .all(|stream| stream.replay.counts_reconcile())
+            .map(|stream| stream.member)
+            .eq(self.delivery.members.iter().copied())
+            && self
+                .streams
+                .iter()
+                .all(|stream| stream.replay.counts_reconcile())
     }
 
     pub fn combined_summary(&self) -> Result<OrderReplaySummary, OrderReplaySummaryError> {
@@ -429,6 +434,7 @@ pub struct TradeCandidateStreamProfile<'a> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TradeCandidateStreamSetProfile<'a> {
+    pub delivery: CmPairedStreamSet,
     pub streams: Vec<TradeCandidateStreamProfile<'a>>,
     pub combined_value_summary: TradeValueSummary,
 }
@@ -436,6 +442,11 @@ pub struct TradeCandidateStreamSetProfile<'a> {
 impl TradeCandidateStreamSetProfile<'_> {
     #[must_use]
     pub fn counts_reconcile(&self) -> bool {
+        let members_reconcile = self.streams.iter().map(|stream| stream.member).eq(self
+            .delivery
+            .members
+            .iter()
+            .copied());
         let sources_reconcile = self
             .streams
             .iter()
@@ -447,7 +458,7 @@ impl TradeCandidateStreamSetProfile<'_> {
                 summary.checked_merge(stream.source.value_summary)
             });
 
-        sources_reconcile && recomputed == Ok(self.combined_value_summary)
+        members_reconcile && sources_reconcile && recomputed == Ok(self.combined_value_summary)
     }
 }
 
@@ -466,6 +477,30 @@ pub enum TradeCandidateStreamSetError {
         error: TradeValueSummaryError,
     },
     CombinedValueSummary(TradeValueSummaryError),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrimOrderTradeEvidence<'a> {
+    pub orders: TrimOrderStreamSetReplay<'a>,
+    pub order_summary: OrderReplaySummary,
+    pub trades: TradeCandidateStreamSetProfile<'a>,
+}
+
+impl TrimOrderTradeEvidence<'_> {
+    #[must_use]
+    pub fn counts_reconcile(&self) -> bool {
+        self.orders.counts_reconcile()
+            && self.orders.combined_summary() == Ok(self.order_summary)
+            && self.order_summary.counts_reconcile()
+            && self.trades.counts_reconcile()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TrimOrderTradeEvidenceError {
+    OrderReplay(CmStreamSourceSetError),
+    OrderSummary(OrderReplaySummaryError),
+    TradeProfile(TradeCandidateStreamSetError),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -987,8 +1022,30 @@ pub fn profile_trim_trade_candidate_stream_set<'a>(
         .map_err(TradeCandidateStreamSetError::CombinedValueSummary)?;
 
     Ok(TradeCandidateStreamSetProfile {
+        delivery: trade_delivery.clone(),
         streams,
         combined_value_summary,
+    })
+}
+
+pub fn profile_trim_order_trade_evidence<'a>(
+    order_delivery: &CmPairedStreamSet,
+    order_sources: &[CmStreamSource<'a>],
+    trade_delivery: &CmPairedStreamSet,
+    trade_sources: &[CmStreamSource<'a>],
+) -> Result<TrimOrderTradeEvidence<'a>, TrimOrderTradeEvidenceError> {
+    let orders = replay_trim_order_stream_set(order_delivery, order_sources)
+        .map_err(TrimOrderTradeEvidenceError::OrderReplay)?;
+    let order_summary = orders
+        .combined_summary()
+        .map_err(TrimOrderTradeEvidenceError::OrderSummary)?;
+    let trades = profile_trim_trade_candidate_stream_set(&orders, trade_delivery, trade_sources)
+        .map_err(TrimOrderTradeEvidenceError::TradeProfile)?;
+
+    Ok(TrimOrderTradeEvidence {
+        orders,
+        order_summary,
+        trades,
     })
 }
 

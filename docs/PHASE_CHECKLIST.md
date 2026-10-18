@@ -561,6 +561,7 @@ Orders + Trades -> integrity -> parser -> raw-event validation -> jiffy validati
 - [x] Bind independent Order replay to its validated delivery identity and profile raw Trade streams only after exact member coverage plus Order/Trade prefix/date checks. Preserve each Trade stream separately with parser quarantine, framing residue, and reconciled candidate diagnostics; do not merge streams.
 - [x] Preserve exact raw entry jiffies in candidate evidence and count entry-before, equal-jiffy, and entry-after-Trade relations with a reconciliation invariant. Treat these as numeric observations only: equal jiffies do not select an order, and no UTC conversion or causal match is implied.
 - [x] Compute exact parsed Trade count, total quantity, and `price_paise * quantity` notional per independent raw Trade stream and as a checked combined summary. Exclude quarantines, preserve residue separately, reject accumulator overflow, and make no event-order claim.
+- [x] Compose validated Order and Trade stream sets into one deterministic in-memory Trim evidence report with exact delivery/member identity, checked summaries, candidate diagnostics, quarantine, and framing evidence. Reject incomplete Order coverage or cross-date/prefix Trades before reading mismatched Trade bytes; emit no durable canonical artifact yet.
 - [ ] Establish temporal trade-reference timing through an evidenced cross-stream merge, then test no-decrement, direct-decrement, and mixed execution interpretations; source membership alone must not choose quantity semantics.
 - [x] Preserve `PO`, `RM`, and `CA` as distinct typed components of provisional order, book, and trade-reference identity. Prove that equal numeric order IDs coexist across all three and that cross-session modify/cancel attempts fail closed without mutating another session.
 - [ ] Validate from representative data whether any order lifecycle crosses session codes; then define session transitions, halts, special-session behavior, file/day boundaries, and daily reset. Current isolation is a conservative implementation invariant, not an exchange-causality claim.
@@ -574,7 +575,7 @@ Orders + Trades -> integrity -> parser -> raw-event validation -> jiffy validati
 
 ```text
 crates/jft-nse-cm/src/{framing,layouts,manifest,parser,jiffy,events,lifecycle,book,reconcile,quarantine}.rs
-crates/jft-nse-cm/tests/{file_names,record_framing,source_parse,layouts,jiffy,lifecycle,replay_determinism,trade_reconciliation}.rs
+crates/jft-nse-cm/tests/{file_names,record_framing,source_parse,layouts,jiffy,lifecycle,replay_determinism,trade_reconciliation,delivery_evidence}.rs
 python/jft/{io,diagnostics}/
 schemas/nse_cm/{canonical.schema.json,manifest.schema.json}
 tests/fixtures/nse_cm/synthetic_nonlicensed/

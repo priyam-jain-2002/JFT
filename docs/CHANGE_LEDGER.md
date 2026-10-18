@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-18 - Compose deterministic Trim delivery evidence
+
+- **Changed:** Added one in-memory evidence object that validates and independently replays Trim Order sources, computes the checked Order summary, validates the matching Trade delivery, and attaches per-stream Trade candidate/value evidence. Order and Trade stream-set reconciliation now also verifies stored member order against the validated delivery descriptors.
+- **Why:** The separate evidence slices need one fail-closed orchestration boundary before they can support a delivery quality report. Composition must not silently cross dates/prefixes, skip members, or imply a temporal merge.
+- **Validation:** Three tests prove reversed caller source arrays produce identical complete evidence, incomplete Order membership stops before invalid Trade bytes are read, and a cross-date Trade delivery is rejected before invalid Trade bytes are read. All 154 default Rust tests pass.
+- **Related:** DEC-2026-008; Phase 1 deterministic interface and quality-report gates.
+- **Follow-up:** Add contextual anomaly classification to this in-memory report. Durable canonical serialization and hashes remain gated on DEC-2026-009 and evidenced ordering.
+
+---
+
 ## 2026-10-18 - Reconcile independent Order replay counts
 
 - **Changed:** Added exact per-source and checked combined Order replay summaries for framed records, parsed records, applied events, quarantines, lifecycle anomalies, and active-order observations. Combined summaries add observations across independent streams without merging equal order identities.
