@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-18 - Correlate rejected lifecycle events across sessions
+
+- **Changed:** Independent Order stream evidence can now correlate a rejected unknown modify/cancel with retained successful-entry evidence having the same exact segment/raw-symbol/raw-series/order-number fields in another session. The report retains the complete rejected event/raw record, anomaly member and coordinate, plus deterministically ordered other-session entry candidates; replay remains unchanged and non-mutating.
+- **Why:** Entry reuse alone cannot reveal whether a rejected lifecycle mutation has a plausible entry in another session. This correlation makes that ambiguity directly measurable without weakening session isolation.
+- **Validation:** A synthetic integration test proves a Pre-Open modify and Closing Auction cancel are still rejected, then reports their exact Regular Market entry candidate; a Regular Market unknown modify with only Regular Market entry evidence is excluded. The result is invariant to caller source order. All 160 default Rust tests pass.
+- **Related:** DEC-2026-008; Phase 1 session-validation gate.
+- **Follow-up:** Measure candidate rates and timing on representative current paired Trim deliveries. A candidate is not proof of lifecycle continuation because identity reuse, cross-stream ordering, and session rules remain unresolved.
+
+---
+
 ## 2026-10-18 - Report session-excluded successful-entry occurrences
 
 - **Changed:** Independent Order stream replay can now group successful entry evidence by exact segment/raw-symbol/raw-series/order-number fields while excluding session, and report only identities observed under more than one session code. Every occurrence retains session, stream member, side, raw jiffy, and source coordinate in deterministic order.

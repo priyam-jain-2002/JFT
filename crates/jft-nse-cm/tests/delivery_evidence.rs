@@ -1,4 +1,4 @@
-use jft_nse_cm::events::{MarketSegment, Session, Side};
+use jft_nse_cm::events::{MarketSegment, OrderActivity, Session, Side};
 use jft_nse_cm::jiffy::ExchangeJiffy;
 use jft_nse_cm::layouts::{SourceDate, TRIM_ORDER_RECORD_LEN};
 use jft_nse_cm::manifest::{
@@ -14,6 +14,10 @@ use jft_nse_cm::reconcile::{
 
 const ENTRY_FIXTURE: &[u8] =
     include_bytes!("../../../tests/fixtures/nse_cm/synthetic_nonlicensed/trim_order_entry.dat");
+const MODIFY_FIXTURE: &[u8] =
+    include_bytes!("../../../tests/fixtures/nse_cm/synthetic_nonlicensed/trim_order_modify.dat");
+const CANCEL_FIXTURE: &[u8] =
+    include_bytes!("../../../tests/fixtures/nse_cm/synthetic_nonlicensed/trim_order_cancel.dat");
 const TRADE_FIXTURE: &[u8] =
     include_bytes!("../../../tests/fixtures/nse_cm/synthetic_nonlicensed/trim_trade.dat");
 
@@ -564,4 +568,136 @@ fn reports_cross_session_entry_occurrences_without_claiming_lifecycle_carry() {
             ],
         }]
     );
+}
+
+#[test]
+fn reports_cross_session_lifecycle_candidates_without_applying_them() {
+    let date = source_date(18);
+    let order_delivery = delivery(CmRecordKind::Orders, date);
+    let trade_delivery = delivery(CmRecordKind::Trades, date);
+
+    let mut pre_open_modify = MODIFY_FIXTURE.to_vec();
+    pre_open_modify[0..2].copy_from_slice(b"PO");
+    let mut closing_auction_cancel = CANCEL_FIXTURE.to_vec();
+    closing_auction_cancel[0..2].copy_from_slice(b"CA");
+    let member_one_orders = [
+        ENTRY_FIXTURE,
+        pre_open_modify.as_slice(),
+        closing_auction_cancel.as_slice(),
+    ]
+    .concat();
+    let order_sources = [
+        CmStreamSource {
+            member: Some(2),
+            source: MODIFY_FIXTURE,
+        },
+        CmStreamSource {
+            member: Some(1),
+            source: &member_one_orders,
+        },
+    ];
+    let trade_sources = [
+        CmStreamSource {
+            member: Some(2),
+            source: b"",
+        },
+        CmStreamSource {
+            member: Some(1),
+            source: b"",
+        },
+    ];
+
+    let evidence = profile_trim_order_trade_evidence(
+        &order_delivery,
+        &order_sources,
+        &trade_delivery,
+        &trade_sources,
+    )
+    .expect("delivery evidence");
+    let reversed = profile_trim_order_trade_evidence(
+        &order_delivery,
+        &[order_sources[1], order_sources[0]],
+        &trade_delivery,
+        &[trade_sources[1], trade_sources[0]],
+    )
+    .expect("reversed delivery evidence");
+
+    assert!(evidence.counts_reconcile());
+    assert_eq!(evidence.order_summary.applied_events, 1);
+    assert_eq!(evidence.order_summary.lifecycle_anomaly_count, 3);
+    let candidates = evidence.orders.cross_session_lifecycle_candidates();
+    assert_eq!(
+        candidates,
+        reversed.orders.cross_session_lifecycle_candidates()
+    );
+    assert_eq!(candidates.len(), 2);
+
+    let candidate = &candidates[0];
+    assert_eq!(candidate.anomaly_member, Some(1));
+    assert_eq!(
+        candidate.anomaly.coordinate,
+        SourceCoordinate {
+            record_index: 1,
+            byte_offset: TRIM_ORDER_RECORD_LEN + 1,
+        }
+    );
+    assert_eq!(candidate.anomaly.event.session, Session::PreOpen);
+    assert_eq!(candidate.anomaly.event.activity, OrderActivity::Modify);
+    assert_eq!(
+        candidate.anomaly.raw,
+        pre_open_modify[..TRIM_ORDER_RECORD_LEN]
+    );
+    assert!(matches!(
+        candidate.anomaly.anomaly,
+        jft_nse_cm::lifecycle::LifecycleAnomaly::UnknownModify { .. }
+    ));
+    assert_eq!(
+        candidate.other_session_entries,
+        vec![SessionOrderEntryOccurrence {
+            member: Some(1),
+            session: Session::RegularMarket,
+            entry: OrderEntryEvidence {
+                side: Side::Buy,
+                exchange_jiffy: ExchangeJiffy::new(91_200_611_817_221),
+                coordinate: SourceCoordinate {
+                    record_index: 0,
+                    byte_offset: 0,
+                },
+            },
+        }]
+    );
+
+    let cancel_candidate = &candidates[1];
+    assert_eq!(cancel_candidate.anomaly_member, Some(1));
+    assert_eq!(
+        cancel_candidate.anomaly.coordinate,
+        SourceCoordinate {
+            record_index: 2,
+            byte_offset: (TRIM_ORDER_RECORD_LEN + 1) * 2,
+        }
+    );
+    assert_eq!(
+        cancel_candidate.anomaly.event.session,
+        Session::ClosingAuction
+    );
+    assert_eq!(
+        cancel_candidate.anomaly.event.activity,
+        OrderActivity::Cancel
+    );
+    assert_eq!(
+        cancel_candidate.anomaly.raw,
+        closing_auction_cancel[..TRIM_ORDER_RECORD_LEN]
+    );
+    assert!(matches!(
+        cancel_candidate.anomaly.anomaly,
+        jft_nse_cm::lifecycle::LifecycleAnomaly::UnknownCancel { .. }
+    ));
+    assert_eq!(
+        cancel_candidate.other_session_entries,
+        candidate.other_session_entries
+    );
+
+    let regular_market_unknown = &evidence.orders.streams[1].replay.lifecycle_anomalies[0];
+    assert_eq!(regular_market_unknown.event.session, Session::RegularMarket);
+    assert_eq!(regular_market_unknown.event.activity, OrderActivity::Modify);
 }

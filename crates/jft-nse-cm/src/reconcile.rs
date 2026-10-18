@@ -463,6 +463,13 @@ pub struct CrossSessionOrderEntryEvidence {
     pub occurrences: Vec<SessionOrderEntryOccurrence>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CrossSessionLifecycleCandidateEvidence {
+    pub anomaly_member: Option<u8>,
+    pub anomaly: LocatedLifecycleAnomaly,
+    pub other_session_entries: Vec<SessionOrderEntryOccurrence>,
+}
+
 impl TrimOrderStreamSetReplay<'_> {
     #[must_use]
     pub fn counts_reconcile(&self) -> bool {
@@ -491,6 +498,66 @@ impl TrimOrderStreamSetReplay<'_> {
     /// does not imply that the exchange carried one lifecycle across sessions.
     #[must_use]
     pub fn cross_session_entry_evidence(&self) -> Vec<CrossSessionOrderEntryEvidence> {
+        self.session_excluded_entry_occurrences()
+            .into_iter()
+            .filter_map(|(identity, occurrences)| {
+                let first_session = occurrences.first()?.session;
+                occurrences
+                    .iter()
+                    .any(|occurrence| occurrence.session != first_session)
+                    .then_some(CrossSessionOrderEntryEvidence {
+                        identity,
+                        occurrences,
+                    })
+            })
+            .collect()
+    }
+
+    /// Reports rejected unknown modify/cancel events that have exact
+    /// non-session entry candidates in another session. These are diagnostic
+    /// candidates only; replay remains session-isolated and does not mutate.
+    #[must_use]
+    pub fn cross_session_lifecycle_candidates(
+        &self,
+    ) -> Vec<CrossSessionLifecycleCandidateEvidence> {
+        let entries = self.session_excluded_entry_occurrences();
+        let mut candidates = Vec::new();
+
+        for stream in &self.streams {
+            for anomaly in &stream.replay.lifecycle_anomalies {
+                if !matches!(
+                    anomaly.anomaly,
+                    LifecycleAnomaly::UnknownModify { .. } | LifecycleAnomaly::UnknownCancel { .. }
+                ) {
+                    continue;
+                }
+
+                let key = OrderKey::from(&anomaly.event);
+                let identity = SessionExcludedOrderIdentity::from(&key);
+                let other_session_entries = entries
+                    .get(&identity)
+                    .into_iter()
+                    .flatten()
+                    .copied()
+                    .filter(|entry| entry.session != anomaly.event.session)
+                    .collect::<Vec<_>>();
+
+                if !other_session_entries.is_empty() {
+                    candidates.push(CrossSessionLifecycleCandidateEvidence {
+                        anomaly_member: stream.member,
+                        anomaly: anomaly.clone(),
+                        other_session_entries,
+                    });
+                }
+            }
+        }
+
+        candidates
+    }
+
+    fn session_excluded_entry_occurrences(
+        &self,
+    ) -> BTreeMap<SessionExcludedOrderIdentity, Vec<SessionOrderEntryOccurrence>> {
         let mut grouped =
             BTreeMap::<SessionExcludedOrderIdentity, Vec<SessionOrderEntryOccurrence>>::new();
 
@@ -507,26 +574,17 @@ impl TrimOrderStreamSetReplay<'_> {
             }
         }
 
+        for occurrences in grouped.values_mut() {
+            occurrences.sort_by_key(|occurrence| {
+                (
+                    occurrence.session,
+                    occurrence.member,
+                    occurrence.entry.coordinate,
+                )
+            });
+        }
+
         grouped
-            .into_iter()
-            .filter_map(|(identity, mut occurrences)| {
-                occurrences.sort_by_key(|occurrence| {
-                    (
-                        occurrence.session,
-                        occurrence.member,
-                        occurrence.entry.coordinate,
-                    )
-                });
-                let first_session = occurrences.first()?.session;
-                occurrences
-                    .iter()
-                    .any(|occurrence| occurrence.session != first_session)
-                    .then_some(CrossSessionOrderEntryEvidence {
-                        identity,
-                        occurrences,
-                    })
-            })
-            .collect()
     }
 }
 
