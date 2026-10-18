@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-18 - Prove fail-closed session isolation
+
+- **Changed:** Made the existing session-key boundary explicit in tests and documentation: the same instrument/order number can coexist independently in `PO`, `RM`, and `CA`; a modify or cancel under another session is an unknown-order anomaly and cannot mutate the active order.
+- **Why:** Silent cross-session mutation would corrupt replay. Failing closed is deterministic and reversible while representative data is absent, but it must not be mistaken for evidence that NSE orders never transition between sessions.
+- **Validation:** Two tests prove three-way same-ID coexistence and exact non-mutating cross-session modify/cancel anomalies. All 135 default Rust tests pass.
+- **Related:** DEC-2026-008; Phase 1 lifecycle/session gates.
+- **Follow-up:** Measure real session transitions, halts, file/day boundaries, and closing-auction behavior before defining reset or cross-session carry rules.
+
+---
+
 ## 2026-10-18 - Detect payload signatures instead of trusting suffixes
 
 - **Changed:** Added dependency-free content classification for empty, gzip, standard ZIP starts, plain ASCII text, and unknown binary payloads. The classifier accepts bytes only and therefore cannot silently infer compression from a filename.

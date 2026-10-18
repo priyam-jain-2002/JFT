@@ -555,7 +555,8 @@ Orders + Trades -> integrity -> parser -> raw-event validation -> jiffy validati
 - [ ] Add fallible durable canonical transition serialization, cross-stream merge/replay, and checkpoint/final-state hashes after ordering is evidenced and the canonical identity decision is active.
 - [x] Join each Trim trade's buy/sell order IDs to successfully entered orders by exact session/segment/raw symbol/series/order identity; retain entry coordinates and classify each side independently as matched, missing, or entry-side mismatch without claiming temporal validity.
 - [ ] Establish temporal trade-reference timing through an evidenced cross-stream merge, then test no-decrement, direct-decrement, and mixed execution interpretations; source membership alone must not choose quantity semantics.
-- [ ] Separate `PO`, `RM`, `CA`; define transitions, halts, special sessions, and daily reset.
+- [x] Preserve `PO`, `RM`, and `CA` as distinct typed components of provisional order, book, and trade-reference identity. Prove that equal numeric order IDs coexist across all three and that cross-session modify/cancel attempts fail closed without mutating another session.
+- [ ] Validate from representative data whether any order lifecycle crosses session codes; then define session transitions, halts, special-session behavior, file/day boundaries, and daily reset. Current isolation is a conservative implementation invariant, not an exchange-causality claim.
 - [ ] Reconcile counts, volume/value, residue, and independent summaries where lawful.
 - [ ] Compare matched Trim/Full replay, lifecycle matches, state divergence, lost features, storage/runtime.
 - [ ] Produce contextual anomaly dossiers and request vendor clarification for systematic ambiguity.

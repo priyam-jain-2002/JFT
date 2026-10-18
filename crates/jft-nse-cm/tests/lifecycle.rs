@@ -205,3 +205,61 @@ fn independent_order_keys_produce_input_order_independent_active_state() {
     assert_eq!(forward.len(), 2);
     assert_eq!(forward.active_orders().count(), 2);
 }
+
+#[test]
+fn same_numeric_order_id_is_isolated_across_all_documented_sessions() {
+    let mut pre_open = parse_fixture(ENTRY_FIXTURE);
+    pre_open.session = Session::PreOpen;
+    let mut regular = pre_open.clone();
+    regular.session = Session::RegularMarket;
+    let mut closing = pre_open.clone();
+    closing.session = Session::ClosingAuction;
+    let mut lifecycle = OrderLifecycle::new();
+
+    lifecycle.apply(&pre_open).expect("pre-open entry");
+    lifecycle.apply(&regular).expect("regular entry");
+    lifecycle.apply(&closing).expect("closing entry");
+
+    assert_eq!(lifecycle.len(), 3);
+    assert!(lifecycle.get(&OrderKey::from(&pre_open)).is_some());
+    assert!(lifecycle.get(&OrderKey::from(&regular)).is_some());
+    assert!(lifecycle.get(&OrderKey::from(&closing)).is_some());
+}
+
+#[test]
+fn cross_session_modify_and_cancel_fail_closed_without_mutating_active_state() {
+    let mut entry = parse_fixture(ENTRY_FIXTURE);
+    entry.session = Session::PreOpen;
+    let mut regular_modify = with_activity_and_jiffy(
+        entry.clone(),
+        OrderActivity::Modify,
+        entry.exchange_jiffy.raw() + 1,
+    );
+    regular_modify.session = Session::RegularMarket;
+    let mut closing_cancel = with_activity_and_jiffy(
+        entry.clone(),
+        OrderActivity::Cancel,
+        entry.exchange_jiffy.raw() + 2,
+    );
+    closing_cancel.session = Session::ClosingAuction;
+    let mut lifecycle = OrderLifecycle::new();
+    lifecycle.apply(&entry).expect("pre-open entry");
+    let before = lifecycle.clone();
+
+    assert_eq!(
+        lifecycle.apply(&regular_modify),
+        Err(LifecycleAnomaly::UnknownModify {
+            key: OrderKey::from(&regular_modify),
+            incoming_jiffy: regular_modify.exchange_jiffy,
+        })
+    );
+    assert_eq!(lifecycle, before);
+    assert_eq!(
+        lifecycle.apply(&closing_cancel),
+        Err(LifecycleAnomaly::UnknownCancel {
+            key: OrderKey::from(&closing_cancel),
+            incoming_jiffy: closing_cancel.exchange_jiffy,
+        })
+    );
+    assert_eq!(lifecycle, before);
+}
