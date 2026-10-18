@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-18 - Reconcile independent Trade quantity and notional
+
+- **Changed:** Added an exact integer Trade value summary with parsed Trade count, total quantity, and `price_paise * quantity` notional. Raw Trade profiles now retain per-stream summaries and a checked combined summary while remaining independently ordered; every accumulator and merge is fallible.
+- **Why:** Phase 1 needs count/volume/value evidence that is independent of any unresolved event merge. Exact `u128` totals avoid floating-point loss, and explicit overflow errors prevent silent wraparound.
+- **Validation:** The synthetic profile proves each Trade contributes count 1, quantity 25, and 6,250,000 paise-notional; two streams reconcile to count 2, quantity 50, and 12,500,000 paise. A separate test forces and rejects count, quantity, notional, and merge overflow. All 149 default Rust tests pass.
+- **Related:** DEC-2026-008; Phase 1 independent-summary and reconciliation gates.
+- **Follow-up:** Compare these totals with vendor/reference summaries on representative paired current data; do not interpret the combined sum as causal replay order.
+
+---
+
 ## 2026-10-18 - Measure candidate entry jiffies against Trades
 
 - **Changed:** Preserved the exact raw entry jiffy in Order-entry evidence and extended candidate diagnostics with entry-before, equal-jiffy, and entry-after-Trade counts. The count invariant now requires those three raw relations to reconcile to every observed candidate.

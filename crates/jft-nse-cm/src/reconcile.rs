@@ -158,6 +158,63 @@ impl TradeOrderCandidateProfile {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct TradeValueSummary {
+    pub trade_count: usize,
+    pub total_quantity: u128,
+    pub total_notional_paise: u128,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TradeValueSummaryError {
+    TradeCountOverflow,
+    TotalQuantityOverflow,
+    TotalNotionalOverflow,
+}
+
+impl TradeValueSummary {
+    pub fn checked_add_trade(self, trade: &TradeEvent) -> Result<Self, TradeValueSummaryError> {
+        let trade_count = self
+            .trade_count
+            .checked_add(1)
+            .ok_or(TradeValueSummaryError::TradeCountOverflow)?;
+        let total_quantity = self
+            .total_quantity
+            .checked_add(u128::from(trade.quantity))
+            .ok_or(TradeValueSummaryError::TotalQuantityOverflow)?;
+        let trade_notional_paise = u128::from(trade.price_paise)
+            .checked_mul(u128::from(trade.quantity))
+            .ok_or(TradeValueSummaryError::TotalNotionalOverflow)?;
+        let total_notional_paise = self
+            .total_notional_paise
+            .checked_add(trade_notional_paise)
+            .ok_or(TradeValueSummaryError::TotalNotionalOverflow)?;
+
+        Ok(Self {
+            trade_count,
+            total_quantity,
+            total_notional_paise,
+        })
+    }
+
+    pub fn checked_merge(self, other: Self) -> Result<Self, TradeValueSummaryError> {
+        Ok(Self {
+            trade_count: self
+                .trade_count
+                .checked_add(other.trade_count)
+                .ok_or(TradeValueSummaryError::TradeCountOverflow)?,
+            total_quantity: self
+                .total_quantity
+                .checked_add(other.total_quantity)
+                .ok_or(TradeValueSummaryError::TotalQuantityOverflow)?,
+            total_notional_paise: self
+                .total_notional_paise
+                .checked_add(other.total_notional_paise)
+                .ok_or(TradeValueSummaryError::TotalNotionalOverflow)?,
+        })
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct JiffyRegression {
     pub previous_coordinate: SourceCoordinate,
@@ -277,6 +334,7 @@ impl TrimOrderStreamSetReplay<'_> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TradeCandidateSourceProfile<'a> {
     pub candidates: TradeOrderCandidateProfile,
+    pub value_summary: TradeValueSummary,
     pub framed_records: usize,
     pub parsed_records: usize,
     pub quarantines: Vec<LocatedQuarantine>,
@@ -288,6 +346,7 @@ impl TradeCandidateSourceProfile<'_> {
     pub fn counts_reconcile(&self) -> bool {
         self.parsed_records.checked_add(self.quarantines.len()) == Some(self.framed_records)
             && self.candidates.trade_count == self.parsed_records
+            && self.value_summary.trade_count == self.parsed_records
             && self.candidates.counts_reconcile()
     }
 }
@@ -301,14 +360,24 @@ pub struct TradeCandidateStreamProfile<'a> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TradeCandidateStreamSetProfile<'a> {
     pub streams: Vec<TradeCandidateStreamProfile<'a>>,
+    pub combined_value_summary: TradeValueSummary,
 }
 
 impl TradeCandidateStreamSetProfile<'_> {
     #[must_use]
     pub fn counts_reconcile(&self) -> bool {
-        self.streams
+        let sources_reconcile = self
+            .streams
             .iter()
-            .all(|stream| stream.source.counts_reconcile())
+            .all(|stream| stream.source.counts_reconcile());
+        let recomputed = self
+            .streams
+            .iter()
+            .try_fold(TradeValueSummary::default(), |summary, stream| {
+                summary.checked_merge(stream.source.value_summary)
+            });
+
+        sources_reconcile && recomputed == Ok(self.combined_value_summary)
     }
 }
 
@@ -321,6 +390,12 @@ pub enum TradeCandidateStreamSetError {
         order_source_date: SourceDate,
         trade_source_date: SourceDate,
     },
+    SourceValueSummary {
+        member: Option<u8>,
+        coordinate: SourceCoordinate,
+        error: TradeValueSummaryError,
+    },
+    CombinedValueSummary(TradeValueSummaryError),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -807,23 +882,41 @@ pub fn profile_trim_trade_candidate_stream_set<'a>(
         });
     }
 
-    let streams = ordered_sources
-        .into_iter()
-        .map(|stream| TradeCandidateStreamProfile {
+    let mut streams = Vec::with_capacity(ordered_sources.len());
+    for stream in ordered_sources {
+        let source = profile_trim_trade_candidate_source(orders, stream.source).map_err(
+            |(coordinate, error)| TradeCandidateStreamSetError::SourceValueSummary {
+                member: stream.member,
+                coordinate,
+                error,
+            },
+        )?;
+        streams.push(TradeCandidateStreamProfile {
             member: stream.member,
-            source: profile_trim_trade_candidate_source(orders, stream.source),
-        })
-        .collect();
+            source,
+        });
+    }
 
-    Ok(TradeCandidateStreamSetProfile { streams })
+    let combined_value_summary = streams
+        .iter()
+        .try_fold(TradeValueSummary::default(), |summary, stream| {
+            summary.checked_merge(stream.source.value_summary)
+        })
+        .map_err(TradeCandidateStreamSetError::CombinedValueSummary)?;
+
+    Ok(TradeCandidateStreamSetProfile {
+        streams,
+        combined_value_summary,
+    })
 }
 
 fn profile_trim_trade_candidate_source<'a>(
     orders: &TrimOrderStreamSetReplay<'_>,
     source: &'a [u8],
-) -> TradeCandidateSourceProfile<'a> {
+) -> Result<TradeCandidateSourceProfile<'a>, (SourceCoordinate, TradeValueSummaryError)> {
     let mut profile = TradeCandidateSourceProfile {
         candidates: TradeOrderCandidateProfile::default(),
+        value_summary: TradeValueSummary::default(),
         framed_records: 0,
         parsed_records: 0,
         quarantines: Vec::new(),
@@ -854,6 +947,10 @@ fn profile_trim_trade_candidate_source<'a>(
             }
         };
         profile.parsed_records += 1;
+        profile.value_summary = profile
+            .value_summary
+            .checked_add_trade(&parsed.event)
+            .map_err(|error| (coordinate, error))?;
         let candidates = collect_trim_trade_stream_candidates(orders, &parsed.event);
         profile.candidates.trade_count += 1;
         observe_candidate_reference(
@@ -868,7 +965,7 @@ fn profile_trim_trade_candidate_source<'a>(
         );
     }
 
-    profile
+    Ok(profile)
 }
 
 fn profile_trim_stream_set<'a>(

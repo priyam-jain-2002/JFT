@@ -540,7 +540,7 @@ Orders + Trades -> integrity -> parser -> raw-event validation -> jiffy validati
 - [x] Inventory all current synthetic fixture sizes and complete-file SHA-256 digests (including LF), with an explicit non-NSE/non-representative provenance warning.
 - [x] Detect empty, gzip, ZIP, plain ASCII, and unknown binary payload signatures from content rather than suffix; prove against synthetic magic/truncation cases and all five supplied legacy `.gz` suffix/content mismatches. Do not decompress or route from extension alone.
 - [ ] Freeze compressed inputs; verify trigger MD5/size, compute SHA-256, write manifest.
-- [ ] Discover all parts/streams rather than hard-code a count; reject missing/duplicate parts.
+- [x] Discover all parts/streams rather than hard-code a count; reject missing/duplicate parts. This is enforced by the homogeneous stream-set and deterministic inventory discovery gates above.
 - [ ] Implement date/version-aware schemas for Trim 68/82 and required Full variants.
 - [ ] Resolve signed numeric encoding and Full Trigger/Limit/flag conditional rules before Full semantic parsing; do not promote the current unsigned fixture behavior into a cross-era canonical contract without evidence.
 - [ ] Preserve raw bytes/padding/file/stream/index/jiffy and a reason for every quarantine.
@@ -559,10 +559,11 @@ Orders + Trades -> integrity -> parser -> raw-event validation -> jiffy validati
 - [x] Aggregate trade-reference candidate evidence into reconciled zero/single/multiple-reference counts, expected-side versus side-mismatch candidate counts, and maximum candidates per reference. This diagnostic preserves ambiguity and makes no temporal or causal claim.
 - [x] Bind independent Order replay to its validated delivery identity and profile raw Trade streams only after exact member coverage plus Order/Trade prefix/date checks. Preserve each Trade stream separately with parser quarantine, framing residue, and reconciled candidate diagnostics; do not merge streams.
 - [x] Preserve exact raw entry jiffies in candidate evidence and count entry-before, equal-jiffy, and entry-after-Trade relations with a reconciliation invariant. Treat these as numeric observations only: equal jiffies do not select an order, and no UTC conversion or causal match is implied.
+- [x] Compute exact parsed Trade count, total quantity, and `price_paise * quantity` notional per independent raw Trade stream and as a checked combined summary. Exclude quarantines, preserve residue separately, reject accumulator overflow, and make no event-order claim.
 - [ ] Establish temporal trade-reference timing through an evidenced cross-stream merge, then test no-decrement, direct-decrement, and mixed execution interpretations; source membership alone must not choose quantity semantics.
 - [x] Preserve `PO`, `RM`, and `CA` as distinct typed components of provisional order, book, and trade-reference identity. Prove that equal numeric order IDs coexist across all three and that cross-session modify/cancel attempts fail closed without mutating another session.
 - [ ] Validate from representative data whether any order lifecycle crosses session codes; then define session transitions, halts, special-session behavior, file/day boundaries, and daily reset. Current isolation is a conservative implementation invariant, not an exchange-causality claim.
-- [ ] Reconcile counts, volume/value, residue, and independent summaries where lawful.
+- [ ] Reconcile the implemented counts, quantity/notional, residue, and independent summaries against representative delivery/vendor evidence where available.
 - [ ] Compare matched Trim/Full replay, lifecycle matches, state divergence, lost features, storage/runtime.
 - [ ] Produce contextual anomaly dossiers and request vendor clarification for systematic ambiguity.
 - [ ] Emit canonical columnar data, schema docs, manifests, and deterministic replay interface.
