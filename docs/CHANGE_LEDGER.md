@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-18 - Integrate source jiffy evidence into replay
+
+- **Changed:** Order replay and raw Trade candidate profiling now accumulate the existing min/max, equal-run, and coordinate-exact regression evidence during their primary parse pass. The composed report classifies nonzero Order and Trade source regressions without reparsing or selecting cross-stream order.
+- **Why:** Delivery evidence should contain source monotonicity and tie evidence, but a second parsing pass would add avoidable cost and could drift from replay accounting. Reusing one sequence accumulator keeps the standalone profiler and replay semantics aligned.
+- **Validation:** A new integration test injects decreasing raw jiffies in both Order and Trade sources and proves exact one-pass sequence counts, regression counts, entry-after-Trade evidence, and deterministic observation order. The existing 12 jiffy-profiler and 16 replay tests remain green. All 156 default Rust tests pass.
+- **Related:** DEC-2026-008; Phase 1 jiffy, replay, and delivery-quality gates.
+- **Follow-up:** Representative paired current data remains required to measure real monotonicity, tie runs, range overlap, and regression rates before any merge policy.
+
+---
+
 ## 2026-10-18 - Classify delivery evidence observations
 
 - **Changed:** Added a deterministic per-stream observation taxonomy over the composed Trim evidence report. It emits only nonzero counts for Order quarantine, four lifecycle-anomaly classes, Order framing loss, Trade quarantine/framing loss, zero/multiple entry-candidate references, side mismatches, and equal/after raw-jiffy candidates.

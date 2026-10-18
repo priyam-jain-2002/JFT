@@ -259,3 +259,108 @@ fn reports_nonzero_observations_in_deterministic_stream_and_kind_order() {
         ]
     );
 }
+
+#[test]
+fn retains_source_jiffy_regressions_in_the_same_evidence_pass() {
+    let date = source_date(18);
+    let order_delivery = delivery(CmRecordKind::Orders, date);
+    let trade_delivery = delivery(CmRecordKind::Trades, date);
+
+    let mut lower_order = ENTRY_FIXTURE.to_vec();
+    lower_order[22..36].copy_from_slice(b"91200611817220");
+    let member_one_orders = [ENTRY_FIXTURE, lower_order.as_slice()].concat();
+    let order_sources = [
+        CmStreamSource {
+            member: Some(2),
+            source: b"",
+        },
+        CmStreamSource {
+            member: Some(1),
+            source: &member_one_orders,
+        },
+    ];
+
+    let mut lower_trade = TRADE_FIXTURE.to_vec();
+    lower_trade[6..20].copy_from_slice(b"91200611817220");
+    let member_one_trades = [TRADE_FIXTURE, lower_trade.as_slice()].concat();
+    let trade_sources = [
+        CmStreamSource {
+            member: Some(2),
+            source: b"",
+        },
+        CmStreamSource {
+            member: Some(1),
+            source: &member_one_trades,
+        },
+    ];
+
+    let evidence = profile_trim_order_trade_evidence(
+        &order_delivery,
+        &order_sources,
+        &trade_delivery,
+        &trade_sources,
+    )
+    .expect("delivery evidence");
+
+    assert!(evidence.counts_reconcile());
+    assert_eq!(
+        evidence.orders.streams[0]
+            .replay
+            .jiffy_sequence
+            .observation_count,
+        2
+    );
+    assert_eq!(
+        evidence.orders.streams[0]
+            .replay
+            .jiffy_sequence
+            .regressions
+            .len(),
+        1
+    );
+    assert_eq!(
+        evidence.trades.streams[0]
+            .source
+            .jiffy_sequence
+            .observation_count,
+        2
+    );
+    assert_eq!(
+        evidence.trades.streams[0]
+            .source
+            .jiffy_sequence
+            .regressions
+            .len(),
+        1
+    );
+    assert_eq!(
+        evidence.observations(),
+        vec![
+            TrimEvidenceObservation {
+                member: Some(1),
+                kind: TrimEvidenceObservationKind::OrderDuplicateEntry,
+                count: 1,
+            },
+            TrimEvidenceObservation {
+                member: Some(1),
+                kind: TrimEvidenceObservationKind::OrderSourceJiffyRegression,
+                count: 1,
+            },
+            TrimEvidenceObservation {
+                member: Some(1),
+                kind: TrimEvidenceObservationKind::TradeZeroEntryCandidateReference,
+                count: 2,
+            },
+            TrimEvidenceObservation {
+                member: Some(1),
+                kind: TrimEvidenceObservationKind::TradeEntryAfterTradeCandidate,
+                count: 1,
+            },
+            TrimEvidenceObservation {
+                member: Some(1),
+                kind: TrimEvidenceObservationKind::TradeSourceJiffyRegression,
+                count: 1,
+            },
+        ]
+    );
+}

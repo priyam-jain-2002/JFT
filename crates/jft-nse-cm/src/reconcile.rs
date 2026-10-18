@@ -63,6 +63,7 @@ pub struct TrimOrderReplay<'a> {
     pub lifecycle: OrderLifecycle,
     pub active_provenance: BTreeMap<OrderKey, ActiveOrderProvenance>,
     pub order_entries: BTreeMap<OrderKey, OrderEntryEvidence>,
+    pub jiffy_sequence: JiffySequenceProfile,
     pub framed_records: usize,
     pub parsed_records: usize,
     pub applied_events: usize,
@@ -410,6 +411,7 @@ impl TrimOrderStreamSetReplay<'_> {
 pub struct TradeCandidateSourceProfile<'a> {
     pub candidates: TradeOrderCandidateProfile,
     pub value_summary: TradeValueSummary,
+    pub jiffy_sequence: JiffySequenceProfile,
     pub framed_records: usize,
     pub parsed_records: usize,
     pub quarantines: Vec<LocatedQuarantine>,
@@ -422,6 +424,7 @@ impl TradeCandidateSourceProfile<'_> {
         self.parsed_records.checked_add(self.quarantines.len()) == Some(self.framed_records)
             && self.candidates.trade_count == self.parsed_records
             && self.value_summary.trade_count == self.parsed_records
+            && self.jiffy_sequence.observation_count == self.parsed_records
             && self.candidates.counts_reconcile()
     }
 }
@@ -493,6 +496,7 @@ pub enum TrimEvidenceObservationKind {
     OrderUnknownModify,
     OrderUnknownCancel,
     OrderRegressingJiffy,
+    OrderSourceJiffyRegression,
     OrderFramingLoss,
     TradeQuarantine,
     TradeFramingLoss,
@@ -501,6 +505,7 @@ pub enum TrimEvidenceObservationKind {
     TradeSideMismatchCandidate,
     TradeEntryEqualJiffyCandidate,
     TradeEntryAfterTradeCandidate,
+    TradeSourceJiffyRegression,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -533,6 +538,12 @@ impl TrimOrderTradeEvidence<'_> {
             for (kind, count) in order_lifecycle_observation_counts(&stream.replay) {
                 push_observation(&mut observations, stream.member, kind, count);
             }
+            push_observation(
+                &mut observations,
+                stream.member,
+                TrimEvidenceObservationKind::OrderSourceJiffyRegression,
+                stream.replay.jiffy_sequence.regressions.len(),
+            );
             push_observation(
                 &mut observations,
                 stream.member,
@@ -584,6 +595,12 @@ impl TrimOrderTradeEvidence<'_> {
                 stream.member,
                 TrimEvidenceObservationKind::TradeEntryAfterTradeCandidate,
                 candidates.entry_after_trade_candidates,
+            );
+            push_observation(
+                &mut observations,
+                stream.member,
+                TrimEvidenceObservationKind::TradeSourceJiffyRegression,
+                stream.source.jiffy_sequence.regressions.len(),
             );
         }
 
@@ -722,6 +739,7 @@ impl TrimOrderReplay<'_> {
                 .applied_events
                 .checked_add(self.lifecycle_anomalies.len())
                 == Some(self.parsed_records)
+            && self.jiffy_sequence.observation_count == self.parsed_records
     }
 
     #[must_use]
@@ -751,6 +769,7 @@ pub fn replay_trim_order_source_with_observer(
         lifecycle: OrderLifecycle::new(),
         active_provenance: BTreeMap::new(),
         order_entries: BTreeMap::new(),
+        jiffy_sequence: JiffySequenceProfile::default(),
         framed_records: 0,
         parsed_records: 0,
         applied_events: 0,
@@ -758,6 +777,8 @@ pub fn replay_trim_order_source_with_observer(
         lifecycle_anomalies: Vec::new(),
         framing_error: None,
     };
+    let mut previous_jiffy = None;
+    let mut current_equal_jiffy_run = 0;
 
     for outcome in parse_trim_order_source(source) {
         let located = match outcome {
@@ -784,6 +805,13 @@ pub fn replay_trim_order_source_with_observer(
             }
         };
         replay.parsed_records += 1;
+        observe_jiffy_sequence(
+            &mut replay.jiffy_sequence,
+            &mut previous_jiffy,
+            &mut current_equal_jiffy_run,
+            coordinate,
+            parsed.event.exchange_jiffy,
+        );
         let key = OrderKey::from(&parsed.event);
 
         match replay.lifecycle.apply(&parsed.event) {
@@ -1203,11 +1231,14 @@ fn profile_trim_trade_candidate_source<'a>(
     let mut profile = TradeCandidateSourceProfile {
         candidates: TradeOrderCandidateProfile::default(),
         value_summary: TradeValueSummary::default(),
+        jiffy_sequence: JiffySequenceProfile::default(),
         framed_records: 0,
         parsed_records: 0,
         quarantines: Vec::new(),
         framing_error: None,
     };
+    let mut previous_jiffy = None;
+    let mut current_equal_jiffy_run = 0;
 
     for outcome in parse_trim_trade_source(source) {
         let located = match outcome {
@@ -1233,6 +1264,13 @@ fn profile_trim_trade_candidate_source<'a>(
             }
         };
         profile.parsed_records += 1;
+        observe_jiffy_sequence(
+            &mut profile.jiffy_sequence,
+            &mut previous_jiffy,
+            &mut current_equal_jiffy_run,
+            coordinate,
+            parsed.event.exchange_jiffy,
+        );
         profile.value_summary = profile
             .value_summary
             .checked_add_trade(&parsed.event)
@@ -1377,42 +1415,55 @@ fn profile_jiffies<'a, T, const N: usize>(
         };
         profile.parsed_records += 1;
         let current = exchange_jiffy(&parsed.event);
-        profile.sequence.observation_count += 1;
-        profile.sequence.minimum = Some(
-            profile
-                .sequence
-                .minimum
-                .map_or(current, |minimum| minimum.min(current)),
+        observe_jiffy_sequence(
+            &mut profile.sequence,
+            &mut previous,
+            &mut current_equal_run,
+            coordinate,
+            current,
         );
-        profile.sequence.maximum = Some(
-            profile
-                .sequence
-                .maximum
-                .map_or(current, |maximum| maximum.max(current)),
-        );
-
-        if let Some((previous_coordinate, previous_jiffy)) = previous {
-            if current == previous_jiffy {
-                profile.sequence.equal_consecutive_observations += 1;
-                current_equal_run += 1;
-            } else {
-                current_equal_run = 1;
-            }
-            if current < previous_jiffy {
-                profile.sequence.regressions.push(JiffyRegression {
-                    previous_coordinate,
-                    previous_jiffy,
-                    current_coordinate: coordinate,
-                    current_jiffy: current,
-                });
-            }
-        } else {
-            current_equal_run = 1;
-        }
-        profile.sequence.largest_equal_run =
-            profile.sequence.largest_equal_run.max(current_equal_run);
-        previous = Some((coordinate, current));
     }
 
     profile
+}
+
+fn observe_jiffy_sequence(
+    profile: &mut JiffySequenceProfile,
+    previous: &mut Option<(SourceCoordinate, ExchangeJiffy)>,
+    current_equal_run: &mut usize,
+    coordinate: SourceCoordinate,
+    current: ExchangeJiffy,
+) {
+    profile.observation_count += 1;
+    profile.minimum = Some(
+        profile
+            .minimum
+            .map_or(current, |minimum| minimum.min(current)),
+    );
+    profile.maximum = Some(
+        profile
+            .maximum
+            .map_or(current, |maximum| maximum.max(current)),
+    );
+
+    if let Some((previous_coordinate, previous_jiffy)) = *previous {
+        if current == previous_jiffy {
+            profile.equal_consecutive_observations += 1;
+            *current_equal_run += 1;
+        } else {
+            *current_equal_run = 1;
+        }
+        if current < previous_jiffy {
+            profile.regressions.push(JiffyRegression {
+                previous_coordinate,
+                previous_jiffy,
+                current_coordinate: coordinate,
+                current_jiffy: current,
+            });
+        }
+    } else {
+        *current_equal_run = 1;
+    }
+    profile.largest_equal_run = profile.largest_equal_run.max(*current_equal_run);
+    *previous = Some((coordinate, current));
 }
