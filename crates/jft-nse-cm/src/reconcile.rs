@@ -690,6 +690,7 @@ pub enum TrimEvidenceObservationKind {
     OrderUnknownModify,
     OrderUnknownCancel,
     OrderRegressingJiffy,
+    OrderCrossSessionLifecycleCandidate,
     OrderSourceJiffyRegression,
     OrderFramingLoss,
     TradeQuarantine,
@@ -727,6 +728,7 @@ impl TrimOrderTradeEvidence<'_> {
     #[must_use]
     pub fn observations(&self) -> Vec<TrimEvidenceObservation> {
         let mut observations = Vec::new();
+        let cross_session_candidates = self.orders.cross_session_lifecycle_candidates();
 
         for stream in &self.orders.streams {
             push_observation(
@@ -738,6 +740,15 @@ impl TrimOrderTradeEvidence<'_> {
             for (kind, count) in order_lifecycle_observation_counts(&stream.replay) {
                 push_observation(&mut observations, stream.member, kind, count);
             }
+            push_observation(
+                &mut observations,
+                stream.member,
+                TrimEvidenceObservationKind::OrderCrossSessionLifecycleCandidate,
+                cross_session_candidates
+                    .iter()
+                    .filter(|candidate| candidate.anomaly_member == stream.member)
+                    .count(),
+            );
             push_observation(
                 &mut observations,
                 stream.member,

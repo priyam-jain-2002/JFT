@@ -697,6 +697,32 @@ fn reports_cross_session_lifecycle_candidates_without_applying_them() {
         candidate.other_session_entries
     );
 
+    assert_eq!(
+        evidence.observations(),
+        vec![
+            TrimEvidenceObservation {
+                member: Some(1),
+                kind: TrimEvidenceObservationKind::OrderUnknownModify,
+                count: 1,
+            },
+            TrimEvidenceObservation {
+                member: Some(1),
+                kind: TrimEvidenceObservationKind::OrderUnknownCancel,
+                count: 1,
+            },
+            TrimEvidenceObservation {
+                member: Some(1),
+                kind: TrimEvidenceObservationKind::OrderCrossSessionLifecycleCandidate,
+                count: 2,
+            },
+            TrimEvidenceObservation {
+                member: Some(2),
+                kind: TrimEvidenceObservationKind::OrderUnknownModify,
+                count: 1,
+            },
+        ]
+    );
+
     let regular_market_unknown = &evidence.orders.streams[1].replay.lifecycle_anomalies[0];
     assert_eq!(regular_market_unknown.event.session, Session::RegularMarket);
     assert_eq!(regular_market_unknown.event.activity, OrderActivity::Modify);

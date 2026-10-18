@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-18 - Surface cross-session candidates in the observation taxonomy
+
+- **Changed:** The composed Trim evidence taxonomy now emits a nonzero `OrderCrossSessionLifecycleCandidate` count per Order stream, derived from the retained cross-session lifecycle candidate dossiers.
+- **Why:** Representative profiling should surface these ambiguity candidates through the same deterministic report used for parser, lifecycle, framing, jiffy, and trade-reference observations rather than requiring a separate manual scan.
+- **Validation:** The existing modify/cancel integration dossier now proves the taxonomy reports exactly two candidates for member 1, reports the underlying unknown-modify/unknown-cancel counts, and does not classify member 2's same-session unknown modify as cross-session. All 160 default Rust tests pass.
+- **Related:** The immediately following cross-session lifecycle-correlation entry; Phase 1 observation-taxonomy gate.
+- **Follow-up:** Representative-data runs must retain the dossiers behind this count and must not assign causality or severity from the count alone.
+
+---
+
 ## 2026-10-18 - Correlate rejected lifecycle events across sessions
 
 - **Changed:** Independent Order stream evidence can now correlate a rejected unknown modify/cancel with retained successful-entry evidence having the same exact segment/raw-symbol/raw-series/order-number fields in another session. The report retains the complete rejected event/raw record, anomaly member and coordinate, plus deterministically ordered other-session entry candidates; replay remains unchanged and non-mutating.
