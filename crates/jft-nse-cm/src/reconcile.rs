@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use crate::book::{BookProjectionError, OrderBookProjection};
-use crate::events::{OrderEvent, Side, TradeEvent};
+use crate::events::{OrderEvent, Session, Side, TradeEvent};
 use crate::framing::{FixedWidthLfRecords, FramingError, FramingProfile, profile_fixed_width_lf};
 use crate::jiffy::ExchangeJiffy;
 use crate::layouts::{
@@ -64,6 +64,7 @@ pub struct TrimOrderReplay<'a> {
     pub active_provenance: BTreeMap<OrderKey, ActiveOrderProvenance>,
     pub order_entries: BTreeMap<OrderKey, OrderEntryEvidence>,
     pub jiffy_sequence: JiffySequenceProfile,
+    pub session_counts: SessionObservationCounts,
     pub framed_records: usize,
     pub parsed_records: usize,
     pub applied_events: usize,
@@ -80,6 +81,47 @@ pub struct OrderReplaySummary {
     pub quarantine_count: usize,
     pub lifecycle_anomaly_count: usize,
     pub active_order_observations: usize,
+    pub session_counts: SessionObservationCounts,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct SessionObservationCounts {
+    pub pre_open: usize,
+    pub regular_market: usize,
+    pub closing_auction: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SessionObservationCountError {
+    PreOpenOverflow,
+    RegularMarketOverflow,
+    ClosingAuctionOverflow,
+}
+
+impl SessionObservationCounts {
+    #[must_use]
+    pub fn total(&self) -> Option<usize> {
+        self.pre_open
+            .checked_add(self.regular_market)
+            .and_then(|count| count.checked_add(self.closing_auction))
+    }
+
+    pub fn checked_merge(self, other: Self) -> Result<Self, SessionObservationCountError> {
+        Ok(Self {
+            pre_open: self
+                .pre_open
+                .checked_add(other.pre_open)
+                .ok_or(SessionObservationCountError::PreOpenOverflow)?,
+            regular_market: self
+                .regular_market
+                .checked_add(other.regular_market)
+                .ok_or(SessionObservationCountError::RegularMarketOverflow)?,
+            closing_auction: self
+                .closing_auction
+                .checked_add(other.closing_auction)
+                .ok_or(SessionObservationCountError::ClosingAuctionOverflow)?,
+        })
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -90,6 +132,7 @@ pub enum OrderReplaySummaryError {
     QuarantineCountOverflow,
     LifecycleAnomalyCountOverflow,
     ActiveOrderObservationOverflow,
+    SessionObservationCountOverflow(SessionObservationCountError),
 }
 
 impl OrderReplaySummary {
@@ -100,6 +143,7 @@ impl OrderReplaySummary {
                 .applied_events
                 .checked_add(self.lifecycle_anomaly_count)
                 == Some(self.parsed_records)
+            && self.session_counts.total() == Some(self.parsed_records)
     }
 
     pub fn checked_merge(self, other: Self) -> Result<Self, OrderReplaySummaryError> {
@@ -128,6 +172,10 @@ impl OrderReplaySummary {
                 .active_order_observations
                 .checked_add(other.active_order_observations)
                 .ok_or(OrderReplaySummaryError::ActiveOrderObservationOverflow)?,
+            session_counts: self
+                .session_counts
+                .checked_merge(other.session_counts)
+                .map_err(OrderReplaySummaryError::SessionObservationCountOverflow)?,
         })
     }
 }
@@ -412,6 +460,7 @@ pub struct TradeCandidateSourceProfile<'a> {
     pub candidates: TradeOrderCandidateProfile,
     pub value_summary: TradeValueSummary,
     pub jiffy_sequence: JiffySequenceProfile,
+    pub session_counts: SessionObservationCounts,
     pub framed_records: usize,
     pub parsed_records: usize,
     pub quarantines: Vec<LocatedQuarantine>,
@@ -425,6 +474,7 @@ impl TradeCandidateSourceProfile<'_> {
             && self.candidates.trade_count == self.parsed_records
             && self.value_summary.trade_count == self.parsed_records
             && self.jiffy_sequence.observation_count == self.parsed_records
+            && self.session_counts.total() == Some(self.parsed_records)
             && self.candidates.counts_reconcile()
     }
 }
@@ -440,6 +490,7 @@ pub struct TradeCandidateStreamSetProfile<'a> {
     pub delivery: CmPairedStreamSet,
     pub streams: Vec<TradeCandidateStreamProfile<'a>>,
     pub combined_value_summary: TradeValueSummary,
+    pub combined_session_counts: SessionObservationCounts,
 }
 
 impl TradeCandidateStreamSetProfile<'_> {
@@ -460,8 +511,17 @@ impl TradeCandidateStreamSetProfile<'_> {
             .try_fold(TradeValueSummary::default(), |summary, stream| {
                 summary.checked_merge(stream.source.value_summary)
             });
+        let recomputed_sessions = self
+            .streams
+            .iter()
+            .try_fold(SessionObservationCounts::default(), |counts, stream| {
+                counts.checked_merge(stream.source.session_counts)
+            });
 
-        members_reconcile && sources_reconcile && recomputed == Ok(self.combined_value_summary)
+        members_reconcile
+            && sources_reconcile
+            && recomputed == Ok(self.combined_value_summary)
+            && recomputed_sessions == Ok(self.combined_session_counts)
     }
 }
 
@@ -480,6 +540,7 @@ pub enum TradeCandidateStreamSetError {
         error: TradeValueSummaryError,
     },
     CombinedValueSummary(TradeValueSummaryError),
+    CombinedSessionCounts(SessionObservationCountError),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -817,6 +878,7 @@ impl TrimOrderReplay<'_> {
             quarantine_count: self.quarantines.len(),
             lifecycle_anomaly_count: self.lifecycle_anomalies.len(),
             active_order_observations: self.lifecycle.len(),
+            session_counts: self.session_counts,
         }
     }
 }
@@ -836,6 +898,7 @@ pub fn replay_trim_order_source_with_observer(
         active_provenance: BTreeMap::new(),
         order_entries: BTreeMap::new(),
         jiffy_sequence: JiffySequenceProfile::default(),
+        session_counts: SessionObservationCounts::default(),
         framed_records: 0,
         parsed_records: 0,
         applied_events: 0,
@@ -871,6 +934,7 @@ pub fn replay_trim_order_source_with_observer(
             }
         };
         replay.parsed_records += 1;
+        observe_session(&mut replay.session_counts, parsed.event.session);
         observe_jiffy_sequence(
             &mut replay.jiffy_sequence,
             &mut previous_jiffy,
@@ -1261,11 +1325,18 @@ pub fn profile_trim_trade_candidate_stream_set<'a>(
             summary.checked_merge(stream.source.value_summary)
         })
         .map_err(TradeCandidateStreamSetError::CombinedValueSummary)?;
+    let combined_session_counts = streams
+        .iter()
+        .try_fold(SessionObservationCounts::default(), |counts, stream| {
+            counts.checked_merge(stream.source.session_counts)
+        })
+        .map_err(TradeCandidateStreamSetError::CombinedSessionCounts)?;
 
     Ok(TradeCandidateStreamSetProfile {
         delivery: trade_delivery.clone(),
         streams,
         combined_value_summary,
+        combined_session_counts,
     })
 }
 
@@ -1298,6 +1369,7 @@ fn profile_trim_trade_candidate_source<'a>(
         candidates: TradeOrderCandidateProfile::default(),
         value_summary: TradeValueSummary::default(),
         jiffy_sequence: JiffySequenceProfile::default(),
+        session_counts: SessionObservationCounts::default(),
         framed_records: 0,
         parsed_records: 0,
         quarantines: Vec::new(),
@@ -1330,6 +1402,7 @@ fn profile_trim_trade_candidate_source<'a>(
             }
         };
         profile.parsed_records += 1;
+        observe_session(&mut profile.session_counts, parsed.event.session);
         observe_jiffy_sequence(
             &mut profile.jiffy_sequence,
             &mut previous_jiffy,
@@ -1532,4 +1605,12 @@ fn observe_jiffy_sequence(
     }
     profile.largest_equal_run = profile.largest_equal_run.max(*current_equal_run);
     *previous = Some((coordinate, current));
+}
+
+fn observe_session(counts: &mut SessionObservationCounts, session: Session) {
+    match session {
+        Session::PreOpen => counts.pre_open += 1,
+        Session::RegularMarket => counts.regular_market += 1,
+        Session::ClosingAuction => counts.closing_auction += 1,
+    }
 }

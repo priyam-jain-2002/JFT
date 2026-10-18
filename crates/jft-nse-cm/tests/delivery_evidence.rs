@@ -386,3 +386,68 @@ fn retains_source_jiffy_regressions_in_the_same_evidence_pass() {
         ]
     );
 }
+
+#[test]
+fn counts_every_documented_session_without_defining_transitions() {
+    let date = source_date(18);
+    let order_delivery = delivery(CmRecordKind::Orders, date);
+    let trade_delivery = delivery(CmRecordKind::Trades, date);
+
+    let mut pre_open_order = ENTRY_FIXTURE.to_vec();
+    pre_open_order[0..2].copy_from_slice(b"PO");
+    let mut closing_order = ENTRY_FIXTURE.to_vec();
+    closing_order[0..2].copy_from_slice(b"CA");
+    let member_one_orders = [
+        pre_open_order.as_slice(),
+        ENTRY_FIXTURE,
+        closing_order.as_slice(),
+    ]
+    .concat();
+    let order_sources = [
+        CmStreamSource {
+            member: Some(2),
+            source: b"",
+        },
+        CmStreamSource {
+            member: Some(1),
+            source: &member_one_orders,
+        },
+    ];
+
+    let mut pre_open_trade = TRADE_FIXTURE.to_vec();
+    pre_open_trade[0..2].copy_from_slice(b"PO");
+    let mut closing_trade = TRADE_FIXTURE.to_vec();
+    closing_trade[0..2].copy_from_slice(b"CA");
+    let member_one_trades = [
+        pre_open_trade.as_slice(),
+        TRADE_FIXTURE,
+        closing_trade.as_slice(),
+    ]
+    .concat();
+    let trade_sources = [
+        CmStreamSource {
+            member: Some(2),
+            source: b"",
+        },
+        CmStreamSource {
+            member: Some(1),
+            source: &member_one_trades,
+        },
+    ];
+
+    let evidence = profile_trim_order_trade_evidence(
+        &order_delivery,
+        &order_sources,
+        &trade_delivery,
+        &trade_sources,
+    )
+    .expect("delivery evidence");
+
+    assert!(evidence.counts_reconcile());
+    assert_eq!(evidence.order_summary.session_counts.pre_open, 1);
+    assert_eq!(evidence.order_summary.session_counts.regular_market, 1);
+    assert_eq!(evidence.order_summary.session_counts.closing_auction, 1);
+    assert_eq!(evidence.trades.combined_session_counts.pre_open, 1);
+    assert_eq!(evidence.trades.combined_session_counts.regular_market, 1);
+    assert_eq!(evidence.trades.combined_session_counts.closing_auction, 1);
+}

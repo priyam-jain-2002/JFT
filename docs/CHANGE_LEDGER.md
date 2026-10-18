@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-18 - Count every documented session in delivery evidence
+
+- **Changed:** Order replay, Order summaries, raw Trade profiles, and the combined Trade report now retain exact `PO`, `RM`, and `CA` parsed-event counts. Per-source counts reconcile to parsed records; cross-stream merging uses checked arithmetic with session-specific overflow errors.
+- **Why:** Representative data must reveal actual session coverage before defining resets, transitions, halts, or cross-session carry. Counting session observations is evidence collection, not a session-state policy.
+- **Validation:** An integration fixture proves exactly one Pre-Open, Regular Market, and Closing Auction event on both the Order and Trade sides. Existing overflow coverage now also forces and rejects each session-counter overflow. All 157 default Rust tests pass.
+- **Related:** DEC-2026-008; Phase 1 session-validation and delivery-quality gates.
+- **Follow-up:** Measure session distributions and cross-session order identities on representative current data, then consult before defining transition/reset semantics.
+
+---
+
 ## 2026-10-18 - Expose cross-kind jiffy range overlap
 
 - **Changed:** The composed Trim evidence report now derives deterministic pair lists for overlapping Order stream ranges, overlapping Trade stream ranges, and every overlapping Order-versus-Trade stream range from the one-pass raw-jiffy sequences.

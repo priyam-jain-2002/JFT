@@ -8,8 +8,8 @@ use jft_nse_cm::manifest::{
 };
 use jft_nse_cm::reconcile::{
     CmStreamSource, CmStreamSourceSetError, OrderReplaySummary, OrderReplaySummaryError,
-    SourceCoordinate, TrimOrderReplay, replay_trim_order_source,
-    replay_trim_order_source_with_observer, replay_trim_order_stream_set,
+    SessionObservationCountError, SessionObservationCounts, SourceCoordinate, TrimOrderReplay,
+    replay_trim_order_source, replay_trim_order_source_with_observer, replay_trim_order_stream_set,
 };
 
 const ENTRY_FIXTURE: &[u8] =
@@ -397,6 +397,7 @@ fn order_replay_summary_fails_closed_on_every_count_overflow() {
         quarantine_count: 1,
         lifecycle_anomaly_count: 1,
         active_order_observations: 1,
+        session_counts: Default::default(),
     };
 
     assert_eq!(
@@ -446,5 +447,38 @@ fn order_replay_summary_fails_closed_on_every_count_overflow() {
         }
         .checked_merge(one),
         Err(OrderReplaySummaryError::ActiveOrderObservationOverflow)
+    );
+    assert_eq!(
+        SessionObservationCounts {
+            pre_open: usize::MAX,
+            ..Default::default()
+        }
+        .checked_merge(SessionObservationCounts {
+            pre_open: 1,
+            ..Default::default()
+        }),
+        Err(SessionObservationCountError::PreOpenOverflow)
+    );
+    assert_eq!(
+        SessionObservationCounts {
+            regular_market: usize::MAX,
+            ..Default::default()
+        }
+        .checked_merge(SessionObservationCounts {
+            regular_market: 1,
+            ..Default::default()
+        }),
+        Err(SessionObservationCountError::RegularMarketOverflow)
+    );
+    assert_eq!(
+        SessionObservationCounts {
+            closing_auction: usize::MAX,
+            ..Default::default()
+        }
+        .checked_merge(SessionObservationCounts {
+            closing_auction: 1,
+            ..Default::default()
+        }),
+        Err(SessionObservationCountError::ClosingAuctionOverflow)
     );
 }
