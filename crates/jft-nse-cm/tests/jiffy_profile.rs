@@ -6,7 +6,7 @@ use jft_nse_cm::manifest::{
     CmFilePrefix, CmLogicalGroupKey, CmPairedStreamSet, CmProduct, CmRecordKind,
 };
 use jft_nse_cm::reconcile::{
-    CmStreamSource, JiffyRegression, JiffyStreamRangeOverlap, JiffyStreamSetProfileError,
+    CmStreamSource, CmStreamSourceSetError, JiffyRegression, JiffyStreamRangeOverlap,
     SourceCoordinate, profile_trim_order_jiffies, profile_trim_order_stream_set,
     profile_trim_trade_jiffies, profile_trim_trade_stream_set,
 };
@@ -242,7 +242,7 @@ fn stream_set_profile_rejects_missing_duplicate_and_extra_members_before_parsing
 
     assert_eq!(
         profile_trim_order_stream_set(&expected, &sources),
-        Err(JiffyStreamSetProfileError::StreamMembersMismatch {
+        Err(CmStreamSourceSetError::StreamMembersMismatch {
             expected: vec![Some(1), Some(2)],
             actual: vec![Some(1), Some(1), Some(3)],
         })
@@ -255,7 +255,7 @@ fn stream_set_profile_rejects_wrong_product_and_record_kind() {
     full.key.product = CmProduct::Full;
     assert_eq!(
         profile_trim_order_stream_set(&full, &[]),
-        Err(JiffyStreamSetProfileError::ExpectedTrim {
+        Err(CmStreamSourceSetError::ExpectedTrim {
             actual: CmProduct::Full,
         })
     );
@@ -263,7 +263,7 @@ fn stream_set_profile_rejects_wrong_product_and_record_kind() {
     let trades = delivery(CmRecordKind::Trades, vec![None]);
     assert_eq!(
         profile_trim_order_stream_set(&trades, &[]),
-        Err(JiffyStreamSetProfileError::RecordKindMismatch {
+        Err(CmStreamSourceSetError::RecordKindMismatch {
             expected: CmRecordKind::Orders,
             actual: CmRecordKind::Trades,
         })

@@ -1,11 +1,14 @@
 use jft_nse_cm::events::OrderActivity;
 use jft_nse_cm::framing::FramingErrorReason;
 use jft_nse_cm::jiffy::ExchangeJiffy;
-use jft_nse_cm::layouts::TRIM_ORDER_RECORD_LEN;
+use jft_nse_cm::layouts::{SourceDate, TRIM_ORDER_RECORD_LEN};
 use jft_nse_cm::lifecycle::LifecycleAnomaly;
+use jft_nse_cm::manifest::{
+    CmFilePrefix, CmLogicalGroupKey, CmPairedStreamSet, CmProduct, CmRecordKind,
+};
 use jft_nse_cm::reconcile::{
-    SourceCoordinate, TrimOrderReplay, replay_trim_order_source,
-    replay_trim_order_source_with_observer,
+    CmStreamSource, CmStreamSourceSetError, SourceCoordinate, TrimOrderReplay,
+    replay_trim_order_source, replay_trim_order_source_with_observer, replay_trim_order_stream_set,
 };
 
 const ENTRY_FIXTURE: &[u8] =
@@ -20,6 +23,18 @@ fn assert_counts_reconcile(replay: &TrimOrderReplay<'_>) {
         replay.counts_reconcile(),
         "every framed record is accounted"
     );
+}
+
+fn split_order_delivery() -> CmPairedStreamSet {
+    CmPairedStreamSet {
+        prefix: CmFilePrefix::Cm,
+        key: CmLogicalGroupKey {
+            product: CmProduct::Trim,
+            record_kind: CmRecordKind::Orders,
+            source_date: SourceDate::new(2026, 5, 18).expect("valid source date"),
+        },
+        members: vec![Some(1), Some(2)],
+    }
 }
 
 #[test]
@@ -270,4 +285,78 @@ fn observing_transitions_does_not_change_the_replay_report() {
     let observed = replay_trim_order_source_with_observer(&source, |_| {});
 
     assert_eq!(default, observed);
+}
+
+#[test]
+fn paired_stream_replay_is_deterministic_but_does_not_merge_streams() {
+    let delivery = split_order_delivery();
+    let forward = [
+        CmStreamSource {
+            member: Some(1),
+            source: ENTRY_FIXTURE,
+        },
+        CmStreamSource {
+            member: Some(2),
+            source: ENTRY_FIXTURE,
+        },
+    ];
+    let reverse = [forward[1], forward[0]];
+    let replay = replay_trim_order_stream_set(&delivery, &forward).expect("stream replay");
+
+    assert_eq!(
+        replay,
+        replay_trim_order_stream_set(&delivery, &reverse).expect("reversed stream replay")
+    );
+    assert!(replay.counts_reconcile());
+    assert_eq!(replay.streams.len(), 2);
+    assert_eq!(replay.streams[0].member, Some(1));
+    assert_eq!(replay.streams[1].member, Some(2));
+    for stream in &replay.streams {
+        assert_eq!(stream.replay.lifecycle.len(), 1);
+        assert!(stream.replay.lifecycle_anomalies.is_empty());
+    }
+}
+
+#[test]
+fn paired_stream_replay_retains_stream_context_for_quarantine() {
+    let delivery = split_order_delivery();
+    let mut invalid = ENTRY_FIXTURE.to_vec();
+    invalid[37] = b'2';
+    let sources = [
+        CmStreamSource {
+            member: Some(2),
+            source: &invalid,
+        },
+        CmStreamSource {
+            member: Some(1),
+            source: ENTRY_FIXTURE,
+        },
+    ];
+    let replay = replay_trim_order_stream_set(&delivery, &sources).expect("stream replay");
+
+    assert!(replay.counts_reconcile());
+    assert!(replay.streams[0].replay.quarantines.is_empty());
+    assert_eq!(replay.streams[1].member, Some(2));
+    assert_eq!(replay.streams[1].replay.quarantines.len(), 1);
+    assert_eq!(
+        replay.streams[1].replay.quarantines[0].quarantined.raw,
+        invalid[..TRIM_ORDER_RECORD_LEN]
+    );
+}
+
+#[test]
+fn paired_stream_replay_rejects_member_mismatch_before_parsing() {
+    let delivery = split_order_delivery();
+    let sources = [CmStreamSource {
+        member: Some(1),
+        source: b"not parsed",
+    }];
+
+    assert_eq!(
+        replay_trim_order_stream_set(&delivery, &sources),
+        Err(CmStreamSourceSetError::StreamMembersMismatch {
+            expected: vec![Some(1), Some(2)],
+            actual: vec![Some(1)],
+        })
+    );
 }

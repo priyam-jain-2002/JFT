@@ -174,7 +174,7 @@ impl JiffyStreamSetProfile<'_> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum JiffyStreamSetProfileError {
+pub enum CmStreamSourceSetError {
     ExpectedTrim {
         actual: CmProduct,
     },
@@ -186,6 +186,26 @@ pub enum JiffyStreamSetProfileError {
         expected: Vec<Option<u8>>,
         actual: Vec<Option<u8>>,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrimOrderStreamReplay<'a> {
+    pub member: Option<u8>,
+    pub replay: TrimOrderReplay<'a>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrimOrderStreamSetReplay<'a> {
+    pub streams: Vec<TrimOrderStreamReplay<'a>>,
+}
+
+impl TrimOrderStreamSetReplay<'_> {
+    #[must_use]
+    pub fn counts_reconcile(&self) -> bool {
+        self.streams
+            .iter()
+            .all(|stream| stream.replay.counts_reconcile())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -543,7 +563,7 @@ pub fn profile_fixed_width_field_bytes<'a, const N: usize>(
 pub fn profile_trim_order_stream_set<'a>(
     delivery: &CmPairedStreamSet,
     sources: &[CmStreamSource<'a>],
-) -> Result<JiffyStreamSetProfile<'a>, JiffyStreamSetProfileError> {
+) -> Result<JiffyStreamSetProfile<'a>, CmStreamSourceSetError> {
     profile_trim_stream_set(delivery, sources, CmRecordKind::Orders, |source| {
         profile_trim_order_jiffies(source)
     })
@@ -552,7 +572,7 @@ pub fn profile_trim_order_stream_set<'a>(
 pub fn profile_trim_trade_stream_set<'a>(
     delivery: &CmPairedStreamSet,
     sources: &[CmStreamSource<'a>],
-) -> Result<JiffyStreamSetProfile<'a>, JiffyStreamSetProfileError> {
+) -> Result<JiffyStreamSetProfile<'a>, CmStreamSourceSetError> {
     profile_trim_stream_set(delivery, sources, CmRecordKind::Trades, |source| {
         profile_trim_trade_jiffies(source)
     })
@@ -563,31 +583,8 @@ fn profile_trim_stream_set<'a>(
     sources: &[CmStreamSource<'a>],
     expected_kind: CmRecordKind,
     profile_source: impl Fn(&'a [u8]) -> JiffySourceProfile<'a>,
-) -> Result<JiffyStreamSetProfile<'a>, JiffyStreamSetProfileError> {
-    if delivery.key.product != CmProduct::Trim {
-        return Err(JiffyStreamSetProfileError::ExpectedTrim {
-            actual: delivery.key.product,
-        });
-    }
-    if delivery.key.record_kind != expected_kind {
-        return Err(JiffyStreamSetProfileError::RecordKindMismatch {
-            expected: expected_kind,
-            actual: delivery.key.record_kind,
-        });
-    }
-
-    let mut ordered_sources = sources.to_vec();
-    ordered_sources.sort_by_key(|source| source.member);
-    let actual = ordered_sources
-        .iter()
-        .map(|source| source.member)
-        .collect::<Vec<_>>();
-    if actual != delivery.members {
-        return Err(JiffyStreamSetProfileError::StreamMembersMismatch {
-            expected: delivery.members.clone(),
-            actual,
-        });
-    }
+) -> Result<JiffyStreamSetProfile<'a>, CmStreamSourceSetError> {
+    let ordered_sources = ordered_trim_stream_sources(delivery, sources, expected_kind)?;
 
     let streams = ordered_sources
         .into_iter()
@@ -612,6 +609,54 @@ fn profile_trim_stream_set<'a>(
         streams,
         range_overlaps,
     })
+}
+
+pub fn replay_trim_order_stream_set<'a>(
+    delivery: &CmPairedStreamSet,
+    sources: &[CmStreamSource<'a>],
+) -> Result<TrimOrderStreamSetReplay<'a>, CmStreamSourceSetError> {
+    let ordered_sources = ordered_trim_stream_sources(delivery, sources, CmRecordKind::Orders)?;
+    let streams = ordered_sources
+        .into_iter()
+        .map(|stream| TrimOrderStreamReplay {
+            member: stream.member,
+            replay: replay_trim_order_source(stream.source),
+        })
+        .collect();
+
+    Ok(TrimOrderStreamSetReplay { streams })
+}
+
+fn ordered_trim_stream_sources<'a>(
+    delivery: &CmPairedStreamSet,
+    sources: &[CmStreamSource<'a>],
+    expected_kind: CmRecordKind,
+) -> Result<Vec<CmStreamSource<'a>>, CmStreamSourceSetError> {
+    if delivery.key.product != CmProduct::Trim {
+        return Err(CmStreamSourceSetError::ExpectedTrim {
+            actual: delivery.key.product,
+        });
+    }
+    if delivery.key.record_kind != expected_kind {
+        return Err(CmStreamSourceSetError::RecordKindMismatch {
+            expected: expected_kind,
+            actual: delivery.key.record_kind,
+        });
+    }
+
+    let mut ordered_sources = sources.to_vec();
+    ordered_sources.sort_by_key(|source| source.member);
+    let actual = ordered_sources
+        .iter()
+        .map(|source| source.member)
+        .collect::<Vec<_>>();
+    if actual != delivery.members {
+        return Err(CmStreamSourceSetError::StreamMembersMismatch {
+            expected: delivery.members.clone(),
+            actual,
+        });
+    }
+    Ok(ordered_sources)
 }
 
 fn profile_jiffies<'a, T, const N: usize>(

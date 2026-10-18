@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-18 - Replay paired Order streams independently
+
+- **Changed:** Generalized exact Trim stream-source validation for both profiling and replay, then added deterministic paired-delivery Order orchestration that sorts by member and retains each member around its complete independent replay report.
+- **Why:** We need stream provenance and complete-member enforcement before a merge policy exists. Combining streams now would invent causality; dropping stream identity would make quarantines and anomalies unauditable.
+- **Validation:** Three tests prove reversed source enumeration yields an identical member-ordered result, identical order keys in separate streams remain independent rather than becoming a false duplicate, quarantine bytes retain stream context, and missing membership fails before parsing. All 138 default Rust tests pass.
+- **Related:** DEC-2026-008; Phase 1 multi-stream provenance and ordering gates.
+- **Follow-up:** Run independent replay/profiling on representative paired deliveries; choose and sensitivity-test a cross-stream merge only after measured timing evidence and owner consultation.
+
+---
+
 ## 2026-10-18 - Prove fail-closed session isolation
 
 - **Changed:** Made the existing session-key boundary explicit in tests and documentation: the same instrument/order number can coexist independently in `PO`, `RM`, and `CA`; a modify or cancel under another session is an unknown-order anomaly and cannot mutate the active order.
