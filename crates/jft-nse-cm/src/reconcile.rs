@@ -15,7 +15,7 @@ use crate::layouts::{
 use crate::lifecycle::{LifecycleAnomaly, LifecycleTransition, OrderKey, OrderLifecycle};
 use crate::manifest::{CmFilePrefix, CmPairedStreamSet, CmProduct, CmRecordKind};
 use crate::parser::{LocatedParse, parse_trim_order_source, parse_trim_trade_source};
-use crate::quarantine::QuarantinedRecord;
+use crate::quarantine::{QuarantineReason, QuarantinedRecord};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct SourceCoordinate {
@@ -815,6 +815,23 @@ pub struct TrimQuarantineEvidence<'a> {
     pub located: &'a LocatedQuarantine,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TrimQuarantineClassCount<'a> {
+    pub record_kind: CmRecordKind,
+    pub member: Option<u8>,
+    pub field: Option<FieldLayout>,
+    pub reason: &'a QuarantineReason,
+    pub count: usize,
+    pub validated_raw_jiffy_count: usize,
+}
+
+impl TrimQuarantineClassCount<'_> {
+    #[must_use]
+    pub fn counts_reconcile(&self) -> bool {
+        self.count > 0 && self.validated_raw_jiffy_count <= self.count
+    }
+}
+
 impl TrimOrderTradeEvidence<'_> {
     #[must_use]
     pub fn counts_reconcile(&self) -> bool {
@@ -944,6 +961,40 @@ impl TrimOrderTradeEvidence<'_> {
         }
 
         evidence
+    }
+
+    /// Aggregates the borrowed dossiers by exact failure class in their
+    /// deterministic first-observed order. Raw-jiffy availability is counted
+    /// separately and never changes whether the record remains quarantined.
+    #[must_use]
+    pub fn quarantine_class_counts(&self) -> Vec<TrimQuarantineClassCount<'_>> {
+        let mut classes = Vec::<TrimQuarantineClassCount<'_>>::new();
+
+        for evidence in self.quarantine_evidence() {
+            let field = evidence.located.quarantined.field;
+            let reason = &evidence.located.quarantined.reason;
+            if let Some(class) = classes.iter_mut().find(|class| {
+                class.record_kind == evidence.record_kind
+                    && class.member == evidence.member
+                    && class.field == field
+                    && class.reason == reason
+            }) {
+                class.count += 1;
+                class.validated_raw_jiffy_count +=
+                    usize::from(evidence.located.raw_jiffy.is_some());
+            } else {
+                classes.push(TrimQuarantineClassCount {
+                    record_kind: evidence.record_kind,
+                    member: evidence.member,
+                    field,
+                    reason,
+                    count: 1,
+                    validated_raw_jiffy_count: usize::from(evidence.located.raw_jiffy.is_some()),
+                });
+            }
+        }
+
+        classes
     }
 
     #[must_use]

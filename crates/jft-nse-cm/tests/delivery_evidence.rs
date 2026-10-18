@@ -4,6 +4,7 @@ use jft_nse_cm::layouts::{SourceDate, TRIM_ORDER_RECORD_LEN, TRIM_TRADE_RECORD_L
 use jft_nse_cm::manifest::{
     CmFilePrefix, CmLogicalGroupKey, CmPairedStreamSet, CmProduct, CmRecordKind,
 };
+use jft_nse_cm::quarantine::QuarantineReason;
 use jft_nse_cm::reconcile::{
     CmStreamSource, CmStreamSourceSetError, CrossSessionLifecycleOperation,
     CrossSessionLifecycleRoute, CrossSessionLifecycleRouteCount, CrossSessionOrderEntryEvidence,
@@ -910,4 +911,85 @@ fn route_counts_distinguish_candidate_events_from_entry_multiplicity() {
     invalid = route_counts[0];
     invalid.candidate_event_count = 4;
     assert!(!invalid.counts_reconcile());
+}
+
+#[test]
+fn quarantine_classes_preserve_exact_failure_and_jiffy_availability() {
+    let date = source_date(18);
+    let order_delivery = delivery(CmRecordKind::Orders, date);
+    let trade_delivery = delivery(CmRecordKind::Trades, date);
+
+    let mut invalid_activity = ENTRY_FIXTURE.to_vec();
+    invalid_activity[37] = b'2';
+    let repeated_activity = [invalid_activity.as_slice(), invalid_activity.as_slice()].concat();
+    let mut invalid_jiffy = ENTRY_FIXTURE.to_vec();
+    invalid_jiffy[22] = b'X';
+    let order_sources = [
+        CmStreamSource {
+            member: Some(2),
+            source: &invalid_jiffy,
+        },
+        CmStreamSource {
+            member: Some(1),
+            source: &repeated_activity,
+        },
+    ];
+    let trade_sources = [
+        CmStreamSource {
+            member: Some(2),
+            source: b"",
+        },
+        CmStreamSource {
+            member: Some(1),
+            source: b"",
+        },
+    ];
+
+    let evidence = profile_trim_order_trade_evidence(
+        &order_delivery,
+        &order_sources,
+        &trade_delivery,
+        &trade_sources,
+    )
+    .expect("delivery evidence");
+    let reversed = profile_trim_order_trade_evidence(
+        &order_delivery,
+        &[order_sources[1], order_sources[0]],
+        &trade_delivery,
+        &[trade_sources[1], trade_sources[0]],
+    )
+    .expect("reversed delivery evidence");
+
+    assert!(evidence.counts_reconcile());
+    let classes = evidence.quarantine_class_counts();
+    assert_eq!(classes, reversed.quarantine_class_counts());
+    assert_eq!(classes.len(), 2);
+    assert!(classes.iter().all(|class| class.counts_reconcile()));
+
+    assert_eq!(classes[0].record_kind, CmRecordKind::Orders);
+    assert_eq!(classes[0].member, Some(1));
+    assert_eq!(classes[0].field.expect("activity field").name, "activity");
+    assert!(matches!(
+        classes[0].reason,
+        QuarantineReason::UnknownValue { .. }
+    ));
+    assert_eq!(classes[0].count, 2);
+    assert_eq!(classes[0].validated_raw_jiffy_count, 2);
+
+    assert_eq!(classes[1].record_kind, CmRecordKind::Orders);
+    assert_eq!(classes[1].member, Some(2));
+    assert_eq!(
+        classes[1].field.expect("exchange jiffy field").name,
+        "exchange_jiffy"
+    );
+    assert_eq!(classes[1].reason, &QuarantineReason::InvalidUnsignedInteger);
+    assert_eq!(classes[1].count, 1);
+    assert_eq!(classes[1].validated_raw_jiffy_count, 0);
+
+    let mut invalid_count = classes[0];
+    invalid_count.count = 0;
+    assert!(!invalid_count.counts_reconcile());
+    invalid_count = classes[0];
+    invalid_count.validated_raw_jiffy_count = 3;
+    assert!(!invalid_count.counts_reconcile());
 }

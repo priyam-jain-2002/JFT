@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-19 - Aggregate exact quarantine classes
+
+- **Changed:** The composed Trim report now aggregates quarantines by record kind, validated stream member, exact failure field, and full quarantine reason in deterministic first-observed order. Each class separately counts total records and records with independently validated raw jiffies, with a reconciliation invariant.
+- **Why:** Representative anomaly rates need exact failure classes; a single total quarantine count hides whether failures are repeated field-domain issues, isolated malformed jiffies, or another source-specific pattern.
+- **Validation:** A new integration test proves two identical activity failures become one class with total/jiffy counts `2/2`, an invalid-jiffy failure becomes a distinct class with counts `1/0`, caller source reversal is invariant, and zero or over-reported class counts fail reconciliation. All 162 default Rust tests pass.
+- **Related:** The composed quarantine provenance and validated raw-jiffy entries immediately below; Phase 1 anomaly-rate gate.
+- **Follow-up:** Run class aggregation on representative current deliveries and retain example dossiers behind every nonzero class before assigning severity or requesting vendor clarification.
+
+---
+
 ## 2026-10-19 - Compose deterministic quarantine provenance
 
 - **Changed:** The composed Trim evidence report now exposes a borrowed, allocation-light quarantine view ordered by record kind, validated stream member, and source coordinate. Each item retains the existing raw bytes, failure field/reason, optional validated raw jiffy, and exact record index/byte offset without copying the rejected record.
