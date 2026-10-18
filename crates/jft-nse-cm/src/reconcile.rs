@@ -488,6 +488,21 @@ pub struct CrossSessionLifecycleRouteCount {
     pub route: CrossSessionLifecycleRoute,
     pub candidate_event_count: usize,
     pub entry_candidate_count: usize,
+    pub entry_before_event_candidates: usize,
+    pub entry_equal_event_candidates: usize,
+    pub entry_after_event_candidates: usize,
+}
+
+impl CrossSessionLifecycleRouteCount {
+    #[must_use]
+    pub fn counts_reconcile(&self) -> bool {
+        self.entry_before_event_candidates
+            .checked_add(self.entry_equal_event_candidates)
+            .and_then(|count| count.checked_add(self.entry_after_event_candidates))
+            == Some(self.entry_candidate_count)
+            && self.candidate_event_count > 0
+            && self.candidate_event_count <= self.entry_candidate_count
+    }
 }
 
 impl TrimOrderStreamSetReplay<'_> {
@@ -580,7 +595,8 @@ impl TrimOrderStreamSetReplay<'_> {
     /// event can have matching entry evidence in multiple independent streams.
     #[must_use]
     pub fn cross_session_lifecycle_route_counts(&self) -> Vec<CrossSessionLifecycleRouteCount> {
-        let mut routes = BTreeMap::<CrossSessionLifecycleRoute, (usize, usize)>::new();
+        let mut routes =
+            BTreeMap::<CrossSessionLifecycleRoute, CrossSessionLifecycleRouteCount>::new();
 
         for candidate in self.cross_session_lifecycle_candidates() {
             let operation = match candidate.anomaly.anomaly {
@@ -589,33 +605,45 @@ impl TrimOrderStreamSetReplay<'_> {
                 LifecycleAnomaly::DuplicateEntry { .. }
                 | LifecycleAnomaly::RegressingJiffy { .. } => continue,
             };
-            let mut entries_by_session = BTreeMap::<Session, usize>::new();
+            let mut event_routes = BTreeMap::<CrossSessionLifecycleRoute, ()>::new();
             for entry in candidate.other_session_entries {
-                *entries_by_session.entry(entry.session).or_default() += 1;
-            }
-
-            for (candidate_entry_session, entry_candidate_count) in entries_by_session {
                 let route = CrossSessionLifecycleRoute {
                     operation,
                     anomaly_session: candidate.anomaly.event.session,
-                    candidate_entry_session,
+                    candidate_entry_session: entry.session,
                 };
-                let counts = routes.entry(route).or_default();
-                counts.0 += 1;
-                counts.1 += entry_candidate_count;
+                let counts = routes
+                    .entry(route)
+                    .or_insert(CrossSessionLifecycleRouteCount {
+                        route,
+                        candidate_event_count: 0,
+                        entry_candidate_count: 0,
+                        entry_before_event_candidates: 0,
+                        entry_equal_event_candidates: 0,
+                        entry_after_event_candidates: 0,
+                    });
+                counts.entry_candidate_count += 1;
+                match entry
+                    .entry
+                    .exchange_jiffy
+                    .cmp(&candidate.anomaly.event.exchange_jiffy)
+                {
+                    std::cmp::Ordering::Less => counts.entry_before_event_candidates += 1,
+                    std::cmp::Ordering::Equal => counts.entry_equal_event_candidates += 1,
+                    std::cmp::Ordering::Greater => counts.entry_after_event_candidates += 1,
+                }
+                event_routes.insert(route, ());
+            }
+
+            for route in event_routes.into_keys() {
+                routes
+                    .get_mut(&route)
+                    .expect("candidate route must exist")
+                    .candidate_event_count += 1;
             }
         }
 
-        routes
-            .into_iter()
-            .map(|(route, (candidate_event_count, entry_candidate_count))| {
-                CrossSessionLifecycleRouteCount {
-                    route,
-                    candidate_event_count,
-                    entry_candidate_count,
-                }
-            })
-            .collect()
+        routes.into_values().collect()
     }
 
     fn session_excluded_entry_occurrences(

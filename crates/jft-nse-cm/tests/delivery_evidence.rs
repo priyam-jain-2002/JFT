@@ -734,6 +734,9 @@ fn reports_cross_session_lifecycle_candidates_without_applying_them() {
                 },
                 candidate_event_count: 1,
                 entry_candidate_count: 1,
+                entry_before_event_candidates: 1,
+                entry_equal_event_candidates: 0,
+                entry_after_event_candidates: 0,
             },
             CrossSessionLifecycleRouteCount {
                 route: CrossSessionLifecycleRoute {
@@ -743,6 +746,9 @@ fn reports_cross_session_lifecycle_candidates_without_applying_them() {
                 },
                 candidate_event_count: 1,
                 entry_candidate_count: 1,
+                entry_before_event_candidates: 1,
+                entry_equal_event_candidates: 0,
+                entry_after_event_candidates: 0,
             },
         ]
     );
@@ -755,16 +761,26 @@ fn reports_cross_session_lifecycle_candidates_without_applying_them() {
 #[test]
 fn route_counts_distinguish_candidate_events_from_entry_multiplicity() {
     let date = source_date(18);
-    let order_delivery = delivery(CmRecordKind::Orders, date);
-    let trade_delivery = delivery(CmRecordKind::Trades, date);
+    let mut order_delivery = delivery(CmRecordKind::Orders, date);
+    order_delivery.members.push(Some(3));
+    let mut trade_delivery = delivery(CmRecordKind::Trades, date);
+    trade_delivery.members.push(Some(3));
 
     let mut pre_open_modify = MODIFY_FIXTURE.to_vec();
     pre_open_modify[0..2].copy_from_slice(b"PO");
     let member_one_orders = [ENTRY_FIXTURE, pre_open_modify.as_slice()].concat();
+    let mut equal_jiffy_entry = ENTRY_FIXTURE.to_vec();
+    equal_jiffy_entry[22..36].copy_from_slice(b"91200611817223");
+    let mut after_jiffy_entry = ENTRY_FIXTURE.to_vec();
+    after_jiffy_entry[22..36].copy_from_slice(b"91200611817224");
     let order_sources = [
         CmStreamSource {
+            member: Some(3),
+            source: &after_jiffy_entry,
+        },
+        CmStreamSource {
             member: Some(2),
-            source: ENTRY_FIXTURE,
+            source: &equal_jiffy_entry,
         },
         CmStreamSource {
             member: Some(1),
@@ -772,6 +788,10 @@ fn route_counts_distinguish_candidate_events_from_entry_multiplicity() {
         },
     ];
     let trade_sources = [
+        CmStreamSource {
+            member: Some(3),
+            source: b"",
+        },
         CmStreamSource {
             member: Some(2),
             source: b"",
@@ -791,8 +811,10 @@ fn route_counts_distinguish_candidate_events_from_entry_multiplicity() {
     .expect("delivery evidence");
 
     assert!(evidence.counts_reconcile());
+    let route_counts = evidence.orders.cross_session_lifecycle_route_counts();
+    assert!(route_counts.iter().all(|count| count.counts_reconcile()));
     assert_eq!(
-        evidence.orders.cross_session_lifecycle_route_counts(),
+        route_counts,
         vec![CrossSessionLifecycleRouteCount {
             route: CrossSessionLifecycleRoute {
                 operation: CrossSessionLifecycleOperation::Modify,
@@ -800,7 +822,20 @@ fn route_counts_distinguish_candidate_events_from_entry_multiplicity() {
                 candidate_entry_session: Session::RegularMarket,
             },
             candidate_event_count: 1,
-            entry_candidate_count: 2,
+            entry_candidate_count: 3,
+            entry_before_event_candidates: 1,
+            entry_equal_event_candidates: 1,
+            entry_after_event_candidates: 1,
         }]
     );
+
+    let mut invalid = route_counts[0];
+    invalid.entry_equal_event_candidates = 2;
+    assert!(!invalid.counts_reconcile());
+    invalid = route_counts[0];
+    invalid.candidate_event_count = 0;
+    assert!(!invalid.counts_reconcile());
+    invalid = route_counts[0];
+    invalid.candidate_event_count = 4;
+    assert!(!invalid.counts_reconcile());
 }

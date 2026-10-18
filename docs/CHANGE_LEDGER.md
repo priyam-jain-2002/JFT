@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-18 - Retain raw-jiffy relations in session routes
+
+- **Changed:** Every cross-session operation/session route now separates entry candidates whose raw exchange jiffy is before, equal to, or after the rejected lifecycle event. A reconciliation invariant requires those three counts to equal the route's entry-candidate total and requires each emitted route to contain at least one event and candidate.
+- **Why:** Route frequency alone hides timing ambiguity. Raw-jiffy relations provide evidence needed for later representative review without converting to UTC or selecting an equal-jiffy/cross-stream ordering policy.
+- **Validation:** The route integration test uses three independent Regular Market entries around one rejected Pre-Open modify and proves exact before/equal/after counts of 1/1/1, candidate-event count 1, entry-candidate count 3, and reconciliation success. Existing modify/cancel routes both prove before-event relations. All 161 default Rust tests pass.
+- **Related:** The cross-session route aggregation entry immediately below; unresolved raw-jiffy ordering and epoch gates.
+- **Follow-up:** Measure these relations on representative current paired Trim data; equal or after relations remain observations, not causality or vendor-fault claims.
+
+---
+
 ## 2026-10-18 - Aggregate cross-session candidate routes
 
 - **Changed:** Cross-session lifecycle dossiers now aggregate deterministically by rejected operation, rejected-event session, and candidate-entry session. Each route keeps separate candidate-event and entry-candidate counts so duplicate entry evidence across independent streams is not mistaken for multiple rejected events.
