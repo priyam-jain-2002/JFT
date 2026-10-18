@@ -867,6 +867,7 @@ impl TrimOrderReplay<'_> {
                 .checked_add(self.lifecycle_anomalies.len())
                 == Some(self.parsed_records)
             && self.jiffy_sequence.observation_count == self.parsed_records
+            && self.session_counts.total() == Some(self.parsed_records)
     }
 
     #[must_use]

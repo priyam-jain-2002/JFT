@@ -389,6 +389,16 @@ fn paired_stream_summary_reconciles_without_merging_active_orders() {
 }
 
 #[test]
+fn source_reconciliation_rejects_session_count_mismatch() {
+    let mut replay = replay_trim_order_source(ENTRY_FIXTURE);
+    assert!(replay.counts_reconcile());
+    assert_eq!(replay.session_counts.regular_market, 1);
+
+    replay.session_counts.regular_market = 0;
+    assert!(!replay.counts_reconcile());
+}
+
+#[test]
 fn order_replay_summary_fails_closed_on_every_count_overflow() {
     let one = OrderReplaySummary {
         framed_records: 1,

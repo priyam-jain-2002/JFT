@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-18 - Enforce per-source Order session reconciliation
+
+- **Changed:** The Order source replay invariant now requires its `PO`/`RM`/`CA` total to equal its parsed-record count, matching the already-enforced combined Order and per-source Trade invariants.
+- **Why:** The session counters were populated correctly, but the public per-source reconciliation method did not verify them. That made the verifier weaker than the documented guarantee.
+- **Validation:** A regression test first accepts an intact replay, then mutates its Regular Market count and proves reconciliation rejects the mismatch. All 158 default Rust tests pass.
+- **Related:** The immediately following session-count evidence entry; Phase 1 delivery-quality gates.
+- **Follow-up:** Keep session occurrence evidence separate from any future transition/reset/carry policy.
+
+---
+
 ## 2026-10-18 - Count every documented session in delivery evidence
 
 - **Changed:** Order replay, Order summaries, raw Trade profiles, and the combined Trade report now retain exact `PO`, `RM`, and `CA` parsed-event counts. Per-source counts reconcile to parsed records; cross-stream merging uses checked arithmetic with session-specific overflow errors.
