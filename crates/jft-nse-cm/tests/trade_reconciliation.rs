@@ -6,7 +6,8 @@ use jft_nse_cm::manifest::{
 use jft_nse_cm::parser::parse_trim_trade;
 use jft_nse_cm::reconcile::{
     CmStreamSource, OrderEntryEvidence, OrderSourceReference, SourceCoordinate,
-    collect_trim_trade_stream_candidates, profile_trim_trade_stream_candidates,
+    TradeCandidateStreamSetError, collect_trim_trade_stream_candidates,
+    profile_trim_trade_candidate_stream_set, profile_trim_trade_stream_candidates,
     reconcile_trim_trade_references, replay_trim_order_source, replay_trim_order_stream_set,
 };
 
@@ -38,6 +39,18 @@ fn split_order_delivery() -> CmPairedStreamSet {
             product: CmProduct::Trim,
             record_kind: CmRecordKind::Orders,
             source_date: SourceDate::new(2026, 5, 18).expect("valid source date"),
+        },
+        members: vec![Some(1), Some(2)],
+    }
+}
+
+fn split_trade_delivery(source_date: SourceDate) -> CmPairedStreamSet {
+    CmPairedStreamSet {
+        prefix: CmFilePrefix::Cm,
+        key: CmLogicalGroupKey {
+            product: CmProduct::Trim,
+            record_kind: CmRecordKind::Trades,
+            source_date,
         },
         members: vec![Some(1), Some(2)],
     }
@@ -330,4 +343,131 @@ fn empty_candidate_profile_is_zero_and_reconciled() {
 
     assert_eq!(profile, Default::default());
     assert!(profile.counts_reconcile());
+}
+
+#[test]
+fn profiles_each_raw_trade_stream_independently_in_member_order() {
+    let sell = sell_entry();
+    let order_sources = [
+        CmStreamSource {
+            member: Some(2),
+            source: &sell,
+        },
+        CmStreamSource {
+            member: Some(1),
+            source: ENTRY_FIXTURE,
+        },
+    ];
+    let orders = replay_trim_order_stream_set(&split_order_delivery(), &order_sources)
+        .expect("independent order replay");
+    let trade_sources = [
+        CmStreamSource {
+            member: Some(2),
+            source: TRADE_FIXTURE,
+        },
+        CmStreamSource {
+            member: Some(1),
+            source: TRADE_FIXTURE,
+        },
+    ];
+    let delivery = split_trade_delivery(SourceDate::new(2026, 5, 18).expect("valid date"));
+    let profile = profile_trim_trade_candidate_stream_set(&orders, &delivery, &trade_sources)
+        .expect("trade candidate profile");
+
+    assert!(profile.counts_reconcile());
+    assert_eq!(
+        profile
+            .streams
+            .iter()
+            .map(|stream| stream.member)
+            .collect::<Vec<_>>(),
+        vec![Some(1), Some(2)]
+    );
+    for stream in profile.streams {
+        assert_eq!(stream.source.framed_records, 1);
+        assert_eq!(stream.source.parsed_records, 1);
+        assert_eq!(stream.source.candidates.reference_count, 2);
+        assert_eq!(stream.source.candidates.single_candidate_references, 2);
+        assert_eq!(stream.source.candidates.expected_side_candidates, 2);
+        assert!(stream.source.quarantines.is_empty());
+        assert!(stream.source.framing_error.is_none());
+    }
+}
+
+#[test]
+fn rejects_order_and_trade_delivery_identity_mismatch_before_parsing() {
+    let order_sources = [
+        CmStreamSource {
+            member: Some(1),
+            source: ENTRY_FIXTURE,
+        },
+        CmStreamSource {
+            member: Some(2),
+            source: ENTRY_FIXTURE,
+        },
+    ];
+    let orders = replay_trim_order_stream_set(&split_order_delivery(), &order_sources)
+        .expect("independent order replay");
+    let trade_sources = [
+        CmStreamSource {
+            member: Some(1),
+            source: b"not parsed",
+        },
+        CmStreamSource {
+            member: Some(2),
+            source: b"not parsed",
+        },
+    ];
+    let delivery = split_trade_delivery(SourceDate::new(2026, 5, 19).expect("valid date"));
+
+    assert_eq!(
+        profile_trim_trade_candidate_stream_set(&orders, &delivery, &trade_sources),
+        Err(TradeCandidateStreamSetError::OrderTradeDeliveryMismatch {
+            order_prefix: CmFilePrefix::Cm,
+            trade_prefix: CmFilePrefix::Cm,
+            order_source_date: SourceDate::new(2026, 5, 18).expect("valid date"),
+            trade_source_date: SourceDate::new(2026, 5, 19).expect("valid date"),
+        })
+    );
+}
+
+#[test]
+fn raw_trade_profile_retains_quarantine_and_framing_evidence() {
+    let order_sources = [CmStreamSource {
+        member: Some(1),
+        source: ENTRY_FIXTURE,
+    }];
+    let mut order_delivery = split_order_delivery();
+    order_delivery.members = vec![Some(1)];
+    let orders = replay_trim_order_stream_set(&order_delivery, &order_sources)
+        .expect("independent order replay");
+
+    let mut invalid_trade = TRADE_FIXTURE.to_vec();
+    invalid_trade[36] = b'X';
+    let mut raw_trades = [TRADE_FIXTURE, invalid_trade.as_slice()].concat();
+    raw_trades.extend_from_slice(b"partial-tail");
+    let trade_sources = [CmStreamSource {
+        member: Some(1),
+        source: &raw_trades,
+    }];
+    let mut trade_delivery =
+        split_trade_delivery(SourceDate::new(2026, 5, 18).expect("valid date"));
+    trade_delivery.members = vec![Some(1)];
+    let profile = profile_trim_trade_candidate_stream_set(&orders, &trade_delivery, &trade_sources)
+        .expect("trade candidate profile");
+    let source = &profile.streams[0].source;
+
+    assert!(profile.counts_reconcile());
+    assert_eq!(source.framed_records, 2);
+    assert_eq!(source.parsed_records, 1);
+    assert_eq!(source.quarantines.len(), 1);
+    assert_eq!(source.quarantines[0].coordinate.record_index, 1);
+    assert_eq!(source.candidates.trade_count, 1);
+    assert_eq!(
+        source
+            .framing_error
+            .expect("partial tail must be preserved")
+            .unconsumed_raw,
+        b"partial-tail"
+    );
 }

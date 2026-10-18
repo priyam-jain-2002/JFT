@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-18 - Bind raw Trade diagnostics to delivery identity
+
+- **Changed:** Retained the validated paired-delivery descriptor on independent Order stream replays and added per-member raw Trim Trade profiling against those replays. The profiler validates Trade source coverage, rejects Order/Trade prefix or date mismatch, preserves parsing quarantine and framing residue, and emits reconciled candidate diagnostics per independent Trade stream.
+- **Why:** Aggregate candidate counts are unsafe if Orders and Trades can silently come from different deliveries. Binding the evidence to exact delivery identity creates a fail-closed path for future representative-data measurements without inventing a cross-stream event order.
+- **Validation:** Three tests prove deterministic per-member raw Trade profiles, rejection of mismatched dates before deliberately invalid Trade bytes are parsed, and exact preservation/reconciliation of a quarantined record plus partial framing tail. All 147 default Rust tests pass.
+- **Related:** DEC-2026-008; Phase 1 delivery identity, raw-event validation, and trade-reference gates.
+- **Follow-up:** Run the raw profile on representative paired current Trim deliveries when acquired; stream-wide aggregation, temporal ordering, and quantity effects remain separate decisions.
+
+---
+
 ## 2026-10-18 - Quantify cross-stream trade-reference ambiguity
 
 - **Changed:** Added a pure aggregate profile over Trim Trade events and independently replayed Order streams. It reports trades, two-sided references, total candidates, zero/single/multiple-candidate references, expected-side and side-mismatched candidates, and maximum candidates per reference, with a count-reconciliation invariant.

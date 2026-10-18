@@ -13,7 +13,7 @@ use crate::layouts::{
     TRIM_ORDER_RECORD_LEN, full_cm_layout_for_date,
 };
 use crate::lifecycle::{LifecycleAnomaly, LifecycleTransition, OrderKey, OrderLifecycle};
-use crate::manifest::{CmPairedStreamSet, CmProduct, CmRecordKind};
+use crate::manifest::{CmFilePrefix, CmPairedStreamSet, CmProduct, CmRecordKind};
 use crate::parser::{LocatedParse, parse_trim_order_source, parse_trim_trade_source};
 use crate::quarantine::QuarantinedRecord;
 
@@ -252,6 +252,7 @@ pub struct TrimOrderStreamReplay<'a> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TrimOrderStreamSetReplay<'a> {
+    pub delivery: CmPairedStreamSet,
     pub streams: Vec<TrimOrderStreamReplay<'a>>,
 }
 
@@ -262,6 +263,55 @@ impl TrimOrderStreamSetReplay<'_> {
             .iter()
             .all(|stream| stream.replay.counts_reconcile())
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TradeCandidateSourceProfile<'a> {
+    pub candidates: TradeOrderCandidateProfile,
+    pub framed_records: usize,
+    pub parsed_records: usize,
+    pub quarantines: Vec<LocatedQuarantine>,
+    pub framing_error: Option<FramingError<'a>>,
+}
+
+impl TradeCandidateSourceProfile<'_> {
+    #[must_use]
+    pub fn counts_reconcile(&self) -> bool {
+        self.parsed_records.checked_add(self.quarantines.len()) == Some(self.framed_records)
+            && self.candidates.trade_count == self.parsed_records
+            && self.candidates.counts_reconcile()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TradeCandidateStreamProfile<'a> {
+    pub member: Option<u8>,
+    pub source: TradeCandidateSourceProfile<'a>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TradeCandidateStreamSetProfile<'a> {
+    pub streams: Vec<TradeCandidateStreamProfile<'a>>,
+}
+
+impl TradeCandidateStreamSetProfile<'_> {
+    #[must_use]
+    pub fn counts_reconcile(&self) -> bool {
+        self.streams
+            .iter()
+            .all(|stream| stream.source.counts_reconcile())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TradeCandidateStreamSetError {
+    TradeSourceSet(CmStreamSourceSetError),
+    OrderTradeDeliveryMismatch {
+        order_prefix: CmFilePrefix,
+        trade_prefix: CmFilePrefix,
+        order_source_date: SourceDate,
+        trade_source_date: SourceDate,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -721,6 +771,82 @@ pub fn profile_trim_trade_stream_set<'a>(
     })
 }
 
+pub fn profile_trim_trade_candidate_stream_set<'a>(
+    orders: &TrimOrderStreamSetReplay<'_>,
+    trade_delivery: &CmPairedStreamSet,
+    trade_sources: &[CmStreamSource<'a>],
+) -> Result<TradeCandidateStreamSetProfile<'a>, TradeCandidateStreamSetError> {
+    let ordered_sources =
+        ordered_trim_stream_sources(trade_delivery, trade_sources, CmRecordKind::Trades)
+            .map_err(TradeCandidateStreamSetError::TradeSourceSet)?;
+
+    if orders.delivery.prefix != trade_delivery.prefix
+        || orders.delivery.key.source_date != trade_delivery.key.source_date
+    {
+        return Err(TradeCandidateStreamSetError::OrderTradeDeliveryMismatch {
+            order_prefix: orders.delivery.prefix,
+            trade_prefix: trade_delivery.prefix,
+            order_source_date: orders.delivery.key.source_date,
+            trade_source_date: trade_delivery.key.source_date,
+        });
+    }
+
+    let streams = ordered_sources
+        .into_iter()
+        .map(|stream| TradeCandidateStreamProfile {
+            member: stream.member,
+            source: profile_trim_trade_candidate_source(orders, stream.source),
+        })
+        .collect();
+
+    Ok(TradeCandidateStreamSetProfile { streams })
+}
+
+fn profile_trim_trade_candidate_source<'a>(
+    orders: &TrimOrderStreamSetReplay<'_>,
+    source: &'a [u8],
+) -> TradeCandidateSourceProfile<'a> {
+    let mut profile = TradeCandidateSourceProfile {
+        candidates: TradeOrderCandidateProfile::default(),
+        framed_records: 0,
+        parsed_records: 0,
+        quarantines: Vec::new(),
+        framing_error: None,
+    };
+
+    for outcome in parse_trim_trade_source(source) {
+        let located = match outcome {
+            Ok(located) => located,
+            Err(error) => {
+                profile.framing_error = Some(error);
+                break;
+            }
+        };
+        profile.framed_records += 1;
+        let coordinate = SourceCoordinate {
+            record_index: located.record_index,
+            byte_offset: located.byte_offset,
+        };
+        let parsed = match located.result {
+            Ok(parsed) => parsed,
+            Err(quarantined) => {
+                profile.quarantines.push(LocatedQuarantine {
+                    coordinate,
+                    quarantined,
+                });
+                continue;
+            }
+        };
+        profile.parsed_records += 1;
+        let candidates = collect_trim_trade_stream_candidates(orders, &parsed.event);
+        profile.candidates.trade_count += 1;
+        observe_candidate_reference(&mut profile.candidates, &candidates.buy);
+        observe_candidate_reference(&mut profile.candidates, &candidates.sell);
+    }
+
+    profile
+}
+
 fn profile_trim_stream_set<'a>(
     delivery: &CmPairedStreamSet,
     sources: &[CmStreamSource<'a>],
@@ -767,7 +893,10 @@ pub fn replay_trim_order_stream_set<'a>(
         })
         .collect();
 
-    Ok(TrimOrderStreamSetReplay { streams })
+    Ok(TrimOrderStreamSetReplay {
+        delivery: delivery.clone(),
+        streams,
+    })
 }
 
 fn ordered_trim_stream_sources<'a>(
