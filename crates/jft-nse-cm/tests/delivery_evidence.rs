@@ -3,8 +3,9 @@ use jft_nse_cm::manifest::{
     CmFilePrefix, CmLogicalGroupKey, CmPairedStreamSet, CmProduct, CmRecordKind,
 };
 use jft_nse_cm::reconcile::{
-    CmStreamSource, CmStreamSourceSetError, TradeCandidateStreamSetError, TrimEvidenceObservation,
-    TrimEvidenceObservationKind, TrimOrderTradeEvidenceError, profile_trim_order_trade_evidence,
+    CmStreamSource, CmStreamSourceSetError, JiffyStreamRangeOverlap, OrderTradeJiffyRangeOverlap,
+    TradeCandidateStreamSetError, TrimEvidenceObservation, TrimEvidenceObservationKind,
+    TrimOrderTradeEvidenceError, profile_trim_order_trade_evidence,
 };
 
 const ENTRY_FIXTURE: &[u8] =
@@ -89,6 +90,27 @@ fn composes_deterministic_order_and_trade_evidence_without_merging_streams() {
     assert_eq!(
         evidence.trades.combined_value_summary.total_notional_paise,
         12_500_000
+    );
+    assert!(evidence.order_range_overlaps().is_empty());
+    assert_eq!(
+        evidence.trade_range_overlaps(),
+        vec![JiffyStreamRangeOverlap {
+            left_member: Some(1),
+            right_member: Some(2),
+        }]
+    );
+    assert_eq!(
+        evidence.order_trade_range_overlaps(),
+        vec![
+            OrderTradeJiffyRangeOverlap {
+                order_member: Some(2),
+                trade_member: Some(1),
+            },
+            OrderTradeJiffyRangeOverlap {
+                order_member: Some(2),
+                trade_member: Some(2),
+            },
+        ]
     );
 }
 

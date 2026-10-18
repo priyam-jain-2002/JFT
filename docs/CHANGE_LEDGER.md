@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-18 - Expose cross-kind jiffy range overlap
+
+- **Changed:** The composed Trim evidence report now derives deterministic pair lists for overlapping Order stream ranges, overlapping Trade stream ranges, and every overlapping Order-versus-Trade stream range from the one-pass raw-jiffy sequences.
+- **Why:** Whether stream ranges overlap is necessary evidence for a merge policy, but overlap alone does not establish event order. Keeping it as explicit member pairs prevents a boolean aggregate from hiding which streams may interleave.
+- **Validation:** The clean two-stream fixture proves no Order/Order overlap, exactly one Trade/Trade pair `(1,2)`, and exactly two Order/Trade pairs `(2,1)` and `(2,2)`. The delivery-evidence suite remains 5/5 green; all 156 default Rust tests pass.
+- **Related:** DEC-2026-008; Phase 1 jiffy-overlap and merge-evidence gates.
+- **Follow-up:** Measure these pairs and actual equal-jiffy groups on representative paired current data before consulting on cross-stream ordering.
+
+---
+
 ## 2026-10-18 - Integrate source jiffy evidence into replay
 
 - **Changed:** Order replay and raw Trade candidate profiling now accumulate the existing min/max, equal-run, and coordinate-exact regression evidence during their primary parse pass. The composed report classifies nonzero Order and Trade source regressions without reparsing or selecting cross-stream order.

@@ -515,6 +515,12 @@ pub struct TrimEvidenceObservation {
     pub count: usize,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OrderTradeJiffyRangeOverlap {
+    pub order_member: Option<u8>,
+    pub trade_member: Option<u8>,
+}
+
 impl TrimOrderTradeEvidence<'_> {
     #[must_use]
     pub fn counts_reconcile(&self) -> bool {
@@ -605,6 +611,66 @@ impl TrimOrderTradeEvidence<'_> {
         }
 
         observations
+    }
+
+    #[must_use]
+    pub fn order_range_overlaps(&self) -> Vec<JiffyStreamRangeOverlap> {
+        let mut overlaps = Vec::new();
+        for (left_index, left) in self.orders.streams.iter().enumerate() {
+            for right in &self.orders.streams[left_index + 1..] {
+                if left
+                    .replay
+                    .jiffy_sequence
+                    .range_overlaps(&right.replay.jiffy_sequence)
+                {
+                    overlaps.push(JiffyStreamRangeOverlap {
+                        left_member: left.member,
+                        right_member: right.member,
+                    });
+                }
+            }
+        }
+        overlaps
+    }
+
+    #[must_use]
+    pub fn trade_range_overlaps(&self) -> Vec<JiffyStreamRangeOverlap> {
+        let mut overlaps = Vec::new();
+        for (left_index, left) in self.trades.streams.iter().enumerate() {
+            for right in &self.trades.streams[left_index + 1..] {
+                if left
+                    .source
+                    .jiffy_sequence
+                    .range_overlaps(&right.source.jiffy_sequence)
+                {
+                    overlaps.push(JiffyStreamRangeOverlap {
+                        left_member: left.member,
+                        right_member: right.member,
+                    });
+                }
+            }
+        }
+        overlaps
+    }
+
+    #[must_use]
+    pub fn order_trade_range_overlaps(&self) -> Vec<OrderTradeJiffyRangeOverlap> {
+        let mut overlaps = Vec::new();
+        for order in &self.orders.streams {
+            for trade in &self.trades.streams {
+                if order
+                    .replay
+                    .jiffy_sequence
+                    .range_overlaps(&trade.source.jiffy_sequence)
+                {
+                    overlaps.push(OrderTradeJiffyRangeOverlap {
+                        order_member: order.member,
+                        trade_member: trade.member,
+                    });
+                }
+            }
+        }
+        overlaps
     }
 }
 
