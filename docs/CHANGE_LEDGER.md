@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-18 - Classify delivery evidence observations
+
+- **Changed:** Added a deterministic per-stream observation taxonomy over the composed Trim evidence report. It emits only nonzero counts for Order quarantine, four lifecycle-anomaly classes, Order framing loss, Trade quarantine/framing loss, zero/multiple entry-candidate references, side mismatches, and equal/after raw-jiffy candidates.
+- **Why:** A useful anomaly dossier needs stable, contextual categories without prematurely assigning severity, causality, or vendor fault. The complete underlying coordinate/raw evidence remains available in the report.
+- **Validation:** One integration test injects one Order quarantine, duplicate entry, Order framing tail, Trade quarantine, Trade framing tail, zero-candidate sell reference, and multiple-candidate buy reference. It proves the exact seven observations are emitted in deterministic member/kind order. All 155 default Rust tests pass.
+- **Related:** DEC-2026-008; Phase 1 anomaly-dossier and delivery-quality gates.
+- **Follow-up:** Add representative-data rates and exact example selection only after current paired Trim data is available; thresholds and severity remain owner-reviewed decisions.
+
+---
+
 ## 2026-10-18 - Compose deterministic Trim delivery evidence
 
 - **Changed:** Added one in-memory evidence object that validates and independently replays Trim Order sources, computes the checked Order summary, validates the matching Trade delivery, and attaches per-stream Trade candidate/value evidence. Order and Trade stream-set reconciliation now also verifies stored member order against the validated delivery descriptors.

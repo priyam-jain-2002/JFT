@@ -486,6 +486,30 @@ pub struct TrimOrderTradeEvidence<'a> {
     pub trades: TradeCandidateStreamSetProfile<'a>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TrimEvidenceObservationKind {
+    OrderQuarantine,
+    OrderDuplicateEntry,
+    OrderUnknownModify,
+    OrderUnknownCancel,
+    OrderRegressingJiffy,
+    OrderFramingLoss,
+    TradeQuarantine,
+    TradeFramingLoss,
+    TradeZeroEntryCandidateReference,
+    TradeMultipleEntryCandidateReference,
+    TradeSideMismatchCandidate,
+    TradeEntryEqualJiffyCandidate,
+    TradeEntryAfterTradeCandidate,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TrimEvidenceObservation {
+    pub member: Option<u8>,
+    pub kind: TrimEvidenceObservationKind,
+    pub count: usize,
+}
+
 impl TrimOrderTradeEvidence<'_> {
     #[must_use]
     pub fn counts_reconcile(&self) -> bool {
@@ -493,6 +517,129 @@ impl TrimOrderTradeEvidence<'_> {
             && self.orders.combined_summary() == Ok(self.order_summary)
             && self.order_summary.counts_reconcile()
             && self.trades.counts_reconcile()
+    }
+
+    #[must_use]
+    pub fn observations(&self) -> Vec<TrimEvidenceObservation> {
+        let mut observations = Vec::new();
+
+        for stream in &self.orders.streams {
+            push_observation(
+                &mut observations,
+                stream.member,
+                TrimEvidenceObservationKind::OrderQuarantine,
+                stream.replay.quarantines.len(),
+            );
+            for (kind, count) in order_lifecycle_observation_counts(&stream.replay) {
+                push_observation(&mut observations, stream.member, kind, count);
+            }
+            push_observation(
+                &mut observations,
+                stream.member,
+                TrimEvidenceObservationKind::OrderFramingLoss,
+                usize::from(stream.replay.framing_error.is_some()),
+            );
+        }
+
+        for stream in &self.trades.streams {
+            push_observation(
+                &mut observations,
+                stream.member,
+                TrimEvidenceObservationKind::TradeQuarantine,
+                stream.source.quarantines.len(),
+            );
+            push_observation(
+                &mut observations,
+                stream.member,
+                TrimEvidenceObservationKind::TradeFramingLoss,
+                usize::from(stream.source.framing_error.is_some()),
+            );
+            let candidates = &stream.source.candidates;
+            push_observation(
+                &mut observations,
+                stream.member,
+                TrimEvidenceObservationKind::TradeZeroEntryCandidateReference,
+                candidates.zero_candidate_references,
+            );
+            push_observation(
+                &mut observations,
+                stream.member,
+                TrimEvidenceObservationKind::TradeMultipleEntryCandidateReference,
+                candidates.multiple_candidate_references,
+            );
+            push_observation(
+                &mut observations,
+                stream.member,
+                TrimEvidenceObservationKind::TradeSideMismatchCandidate,
+                candidates.side_mismatch_candidates,
+            );
+            push_observation(
+                &mut observations,
+                stream.member,
+                TrimEvidenceObservationKind::TradeEntryEqualJiffyCandidate,
+                candidates.entry_equal_trade_candidates,
+            );
+            push_observation(
+                &mut observations,
+                stream.member,
+                TrimEvidenceObservationKind::TradeEntryAfterTradeCandidate,
+                candidates.entry_after_trade_candidates,
+            );
+        }
+
+        observations
+    }
+}
+
+fn order_lifecycle_observation_counts(
+    replay: &TrimOrderReplay<'_>,
+) -> [(TrimEvidenceObservationKind, usize); 4] {
+    let mut duplicate_entry = 0;
+    let mut unknown_modify = 0;
+    let mut unknown_cancel = 0;
+    let mut regressing_jiffy = 0;
+
+    for located in &replay.lifecycle_anomalies {
+        match located.anomaly {
+            LifecycleAnomaly::DuplicateEntry { .. } => duplicate_entry += 1,
+            LifecycleAnomaly::UnknownModify { .. } => unknown_modify += 1,
+            LifecycleAnomaly::UnknownCancel { .. } => unknown_cancel += 1,
+            LifecycleAnomaly::RegressingJiffy { .. } => regressing_jiffy += 1,
+        }
+    }
+
+    [
+        (
+            TrimEvidenceObservationKind::OrderDuplicateEntry,
+            duplicate_entry,
+        ),
+        (
+            TrimEvidenceObservationKind::OrderUnknownModify,
+            unknown_modify,
+        ),
+        (
+            TrimEvidenceObservationKind::OrderUnknownCancel,
+            unknown_cancel,
+        ),
+        (
+            TrimEvidenceObservationKind::OrderRegressingJiffy,
+            regressing_jiffy,
+        ),
+    ]
+}
+
+fn push_observation(
+    observations: &mut Vec<TrimEvidenceObservation>,
+    member: Option<u8>,
+    kind: TrimEvidenceObservationKind,
+    count: usize,
+) {
+    if count > 0 {
+        observations.push(TrimEvidenceObservation {
+            member,
+            kind,
+            count,
+        });
     }
 }
 

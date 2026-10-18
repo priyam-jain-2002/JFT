@@ -562,12 +562,13 @@ Orders + Trades -> integrity -> parser -> raw-event validation -> jiffy validati
 - [x] Preserve exact raw entry jiffies in candidate evidence and count entry-before, equal-jiffy, and entry-after-Trade relations with a reconciliation invariant. Treat these as numeric observations only: equal jiffies do not select an order, and no UTC conversion or causal match is implied.
 - [x] Compute exact parsed Trade count, total quantity, and `price_paise * quantity` notional per independent raw Trade stream and as a checked combined summary. Exclude quarantines, preserve residue separately, reject accumulator overflow, and make no event-order claim.
 - [x] Compose validated Order and Trade stream sets into one deterministic in-memory Trim evidence report with exact delivery/member identity, checked summaries, candidate diagnostics, quarantine, and framing evidence. Reject incomplete Order coverage or cross-date/prefix Trades before reading mismatched Trade bytes; emit no durable canonical artifact yet.
+- [x] Classify every nonzero per-stream parser, lifecycle, framing, trade-reference ambiguity/side, and equal/after raw-jiffy observation in a fixed deterministic taxonomy while retaining the complete underlying evidence. Do not assign severity, causality, thresholds, or vendor fault from synthetic fixtures.
 - [ ] Establish temporal trade-reference timing through an evidenced cross-stream merge, then test no-decrement, direct-decrement, and mixed execution interpretations; source membership alone must not choose quantity semantics.
 - [x] Preserve `PO`, `RM`, and `CA` as distinct typed components of provisional order, book, and trade-reference identity. Prove that equal numeric order IDs coexist across all three and that cross-session modify/cancel attempts fail closed without mutating another session.
 - [ ] Validate from representative data whether any order lifecycle crosses session codes; then define session transitions, halts, special-session behavior, file/day boundaries, and daily reset. Current isolation is a conservative implementation invariant, not an exchange-causality claim.
 - [ ] Reconcile the implemented counts, quantity/notional, residue, and independent summaries against representative delivery/vendor evidence where available.
 - [ ] Compare matched Trim/Full replay, lifecycle matches, state divergence, lost features, storage/runtime.
-- [ ] Produce contextual anomaly dossiers and request vendor clarification for systematic ambiguity.
+- [ ] Produce representative-data anomaly rates and contextual example dossiers, then request vendor clarification for systematic ambiguity where warranted. The deterministic observation taxonomy exists; representative examples and thresholds do not.
 - [ ] Emit canonical columnar data, schema docs, manifests, and deterministic replay interface.
 - [ ] Add a Python canonical-data reader/conformance suite that never reads raw NSE Order/Trade files.
 
