@@ -94,6 +94,25 @@ pub struct TradeOrderSourceReferences {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StreamOrderEntryEvidence {
+    pub member: Option<u8>,
+    pub entry: OrderEntryEvidence,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StreamOrderSourceCandidates {
+    pub key: OrderKey,
+    pub expected_side: Side,
+    pub candidates: Vec<StreamOrderEntryEvidence>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TradeOrderStreamCandidates {
+    pub buy: StreamOrderSourceCandidates,
+    pub sell: StreamOrderSourceCandidates,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct JiffyRegression {
     pub previous_coordinate: SourceCoordinate,
     pub previous_jiffy: ExchangeJiffy,
@@ -405,6 +424,51 @@ pub fn reconcile_trim_trade_references(
     TradeOrderSourceReferences {
         buy: reconcile_order_source_reference(orders, trade, trade.buy_order_number, Side::Buy),
         sell: reconcile_order_source_reference(orders, trade, trade.sell_order_number, Side::Sell),
+    }
+}
+
+#[must_use]
+pub fn collect_trim_trade_stream_candidates(
+    orders: &TrimOrderStreamSetReplay<'_>,
+    trade: &TradeEvent,
+) -> TradeOrderStreamCandidates {
+    TradeOrderStreamCandidates {
+        buy: collect_order_stream_candidates(orders, trade, trade.buy_order_number, Side::Buy),
+        sell: collect_order_stream_candidates(orders, trade, trade.sell_order_number, Side::Sell),
+    }
+}
+
+fn collect_order_stream_candidates(
+    orders: &TrimOrderStreamSetReplay<'_>,
+    trade: &TradeEvent,
+    order_number: u64,
+    expected_side: Side,
+) -> StreamOrderSourceCandidates {
+    let key = OrderKey {
+        session: trade.session,
+        segment: trade.segment,
+        symbol_raw: trade.symbol_raw,
+        series_raw: trade.series_raw,
+        order_number,
+    };
+    let candidates =
+        orders
+            .streams
+            .iter()
+            .filter_map(|stream| {
+                stream.replay.order_entries.get(&key).copied().map(|entry| {
+                    StreamOrderEntryEvidence {
+                        member: stream.member,
+                        entry,
+                    }
+                })
+            })
+            .collect();
+
+    StreamOrderSourceCandidates {
+        key,
+        expected_side,
+        candidates,
     }
 }
 

@@ -1,9 +1,13 @@
 use jft_nse_cm::events::{Session, Side};
-use jft_nse_cm::layouts::{TRIM_ORDER_RECORD_LEN, TRIM_TRADE_RECORD_LEN};
+use jft_nse_cm::layouts::{SourceDate, TRIM_ORDER_RECORD_LEN, TRIM_TRADE_RECORD_LEN};
+use jft_nse_cm::manifest::{
+    CmFilePrefix, CmLogicalGroupKey, CmPairedStreamSet, CmProduct, CmRecordKind,
+};
 use jft_nse_cm::parser::parse_trim_trade;
 use jft_nse_cm::reconcile::{
-    OrderEntryEvidence, OrderSourceReference, SourceCoordinate, reconcile_trim_trade_references,
-    replay_trim_order_source,
+    CmStreamSource, OrderEntryEvidence, OrderSourceReference, SourceCoordinate,
+    collect_trim_trade_stream_candidates, reconcile_trim_trade_references,
+    replay_trim_order_source, replay_trim_order_stream_set,
 };
 
 const ENTRY_FIXTURE: &[u8] =
@@ -25,6 +29,18 @@ fn trade() -> jft_nse_cm::events::TradeEvent {
     parse_trim_trade(&TRADE_FIXTURE[..TRIM_TRADE_RECORD_LEN])
         .expect("synthetic trade")
         .event
+}
+
+fn split_order_delivery() -> CmPairedStreamSet {
+    CmPairedStreamSet {
+        prefix: CmFilePrefix::Cm,
+        key: CmLogicalGroupKey {
+            product: CmProduct::Trim,
+            record_kind: CmRecordKind::Orders,
+            source_date: SourceDate::new(2026, 5, 18).expect("valid source date"),
+        },
+        members: vec![Some(1), Some(2)],
+    }
 }
 
 #[test]
@@ -157,4 +173,81 @@ fn repeated_reference_reconciliation_is_identical() {
         reconcile_trim_trade_references(&orders, &event),
         reconcile_trim_trade_references(&orders, &event)
     );
+}
+
+#[test]
+fn collects_exact_buy_and_sell_candidates_from_separate_streams() {
+    let sell = sell_entry();
+    let sources = [
+        CmStreamSource {
+            member: Some(2),
+            source: &sell,
+        },
+        CmStreamSource {
+            member: Some(1),
+            source: ENTRY_FIXTURE,
+        },
+    ];
+    let orders = replay_trim_order_stream_set(&split_order_delivery(), &sources)
+        .expect("independent stream replay");
+    let candidates = collect_trim_trade_stream_candidates(&orders, &trade());
+
+    assert_eq!(candidates.buy.candidates.len(), 1);
+    assert_eq!(candidates.buy.candidates[0].member, Some(1));
+    assert_eq!(candidates.buy.candidates[0].entry.side, Side::Buy);
+    assert_eq!(candidates.sell.candidates.len(), 1);
+    assert_eq!(candidates.sell.candidates[0].member, Some(2));
+    assert_eq!(candidates.sell.candidates[0].entry.side, Side::Sell);
+}
+
+#[test]
+fn preserves_multiple_cross_stream_candidates_in_member_order() {
+    let sources = [
+        CmStreamSource {
+            member: Some(2),
+            source: ENTRY_FIXTURE,
+        },
+        CmStreamSource {
+            member: Some(1),
+            source: ENTRY_FIXTURE,
+        },
+    ];
+    let orders = replay_trim_order_stream_set(&split_order_delivery(), &sources)
+        .expect("independent stream replay");
+    let candidates = collect_trim_trade_stream_candidates(&orders, &trade());
+
+    assert_eq!(
+        candidates
+            .buy
+            .candidates
+            .iter()
+            .map(|candidate| candidate.member)
+            .collect::<Vec<_>>(),
+        vec![Some(1), Some(2)]
+    );
+    assert!(candidates.sell.candidates.is_empty());
+}
+
+#[test]
+fn retains_side_mismatch_as_candidate_evidence_instead_of_filtering_it() {
+    let mut wrong_side = sell_entry();
+    wrong_side[36] = b'B';
+    let sources = [
+        CmStreamSource {
+            member: Some(1),
+            source: ENTRY_FIXTURE,
+        },
+        CmStreamSource {
+            member: Some(2),
+            source: &wrong_side,
+        },
+    ];
+    let orders = replay_trim_order_stream_set(&split_order_delivery(), &sources)
+        .expect("independent stream replay");
+    let candidates = collect_trim_trade_stream_candidates(&orders, &trade());
+
+    assert_eq!(candidates.sell.expected_side, Side::Sell);
+    assert_eq!(candidates.sell.candidates.len(), 1);
+    assert_eq!(candidates.sell.candidates[0].member, Some(2));
+    assert_eq!(candidates.sell.candidates[0].entry.side, Side::Buy);
 }

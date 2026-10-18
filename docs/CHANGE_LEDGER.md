@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-18 - Preserve all cross-stream trade-reference candidates
+
+- **Changed:** Added deterministic collection of every exact Order-entry candidate for each Trim Trade buy/sell reference across independently replayed streams. Each candidate retains stream member, entry side, and source coordinate; missing, duplicate, and side-mismatched evidence is preserved without ranking.
+- **Why:** A single selected match would hide cross-stream ambiguity before a merge policy exists. Candidate preservation lets representative data measure ambiguity without inventing temporal causality or quantity effects.
+- **Validation:** Three tests prove unique buy/sell candidates across separate streams, deterministic preservation of two same-key candidates in member order, and retention of a side-mismatched candidate. All 141 default Rust tests pass.
+- **Related:** DEC-2026-008; Phase 1 trade-reference and cross-stream ordering gates.
+- **Follow-up:** Measure candidate multiplicity and timing on representative paired data, then consult before defining temporal matches or trade-driven decrements.
+
+---
+
 ## 2026-10-18 - Replay paired Order streams independently
 
 - **Changed:** Generalized exact Trim stream-source validation for both profiling and replay, then added deterministic paired-delivery Order orchestration that sorts by member and retains each member around its complete independent replay report.
