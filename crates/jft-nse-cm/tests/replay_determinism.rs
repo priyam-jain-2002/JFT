@@ -7,8 +7,9 @@ use jft_nse_cm::manifest::{
     CmFilePrefix, CmLogicalGroupKey, CmPairedStreamSet, CmProduct, CmRecordKind,
 };
 use jft_nse_cm::reconcile::{
-    CmStreamSource, CmStreamSourceSetError, SourceCoordinate, TrimOrderReplay,
-    replay_trim_order_source, replay_trim_order_source_with_observer, replay_trim_order_stream_set,
+    CmStreamSource, CmStreamSourceSetError, OrderReplaySummary, OrderReplaySummaryError,
+    SourceCoordinate, TrimOrderReplay, replay_trim_order_source,
+    replay_trim_order_source_with_observer, replay_trim_order_stream_set,
 };
 
 const ENTRY_FIXTURE: &[u8] =
@@ -358,5 +359,92 @@ fn paired_stream_replay_rejects_member_mismatch_before_parsing() {
             expected: vec![Some(1), Some(2)],
             actual: vec![Some(1)],
         })
+    );
+}
+
+#[test]
+fn paired_stream_summary_reconciles_without_merging_active_orders() {
+    let member_one = [ENTRY_FIXTURE, MODIFY_FIXTURE].concat();
+    let sources = [
+        CmStreamSource {
+            member: Some(2),
+            source: ENTRY_FIXTURE,
+        },
+        CmStreamSource {
+            member: Some(1),
+            source: &member_one,
+        },
+    ];
+    let replay = replay_trim_order_stream_set(&split_order_delivery(), &sources)
+        .expect("independent stream replay");
+    let summary = replay.combined_summary().expect("checked count summary");
+
+    assert!(summary.counts_reconcile());
+    assert_eq!(summary.framed_records, 3);
+    assert_eq!(summary.parsed_records, 3);
+    assert_eq!(summary.applied_events, 3);
+    assert_eq!(summary.quarantine_count, 0);
+    assert_eq!(summary.lifecycle_anomaly_count, 0);
+    assert_eq!(summary.active_order_observations, 2);
+}
+
+#[test]
+fn order_replay_summary_fails_closed_on_every_count_overflow() {
+    let one = OrderReplaySummary {
+        framed_records: 1,
+        parsed_records: 1,
+        applied_events: 1,
+        quarantine_count: 1,
+        lifecycle_anomaly_count: 1,
+        active_order_observations: 1,
+    };
+
+    assert_eq!(
+        OrderReplaySummary {
+            framed_records: usize::MAX,
+            ..Default::default()
+        }
+        .checked_merge(one),
+        Err(OrderReplaySummaryError::FramedRecordOverflow)
+    );
+    assert_eq!(
+        OrderReplaySummary {
+            parsed_records: usize::MAX,
+            ..Default::default()
+        }
+        .checked_merge(one),
+        Err(OrderReplaySummaryError::ParsedRecordOverflow)
+    );
+    assert_eq!(
+        OrderReplaySummary {
+            applied_events: usize::MAX,
+            ..Default::default()
+        }
+        .checked_merge(one),
+        Err(OrderReplaySummaryError::AppliedEventOverflow)
+    );
+    assert_eq!(
+        OrderReplaySummary {
+            quarantine_count: usize::MAX,
+            ..Default::default()
+        }
+        .checked_merge(one),
+        Err(OrderReplaySummaryError::QuarantineCountOverflow)
+    );
+    assert_eq!(
+        OrderReplaySummary {
+            lifecycle_anomaly_count: usize::MAX,
+            ..Default::default()
+        }
+        .checked_merge(one),
+        Err(OrderReplaySummaryError::LifecycleAnomalyCountOverflow)
+    );
+    assert_eq!(
+        OrderReplaySummary {
+            active_order_observations: usize::MAX,
+            ..Default::default()
+        }
+        .checked_merge(one),
+        Err(OrderReplaySummaryError::ActiveOrderObservationOverflow)
     );
 }

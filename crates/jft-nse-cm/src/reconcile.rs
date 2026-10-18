@@ -71,6 +71,66 @@ pub struct TrimOrderReplay<'a> {
     pub framing_error: Option<FramingError<'a>>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct OrderReplaySummary {
+    pub framed_records: usize,
+    pub parsed_records: usize,
+    pub applied_events: usize,
+    pub quarantine_count: usize,
+    pub lifecycle_anomaly_count: usize,
+    pub active_order_observations: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OrderReplaySummaryError {
+    FramedRecordOverflow,
+    ParsedRecordOverflow,
+    AppliedEventOverflow,
+    QuarantineCountOverflow,
+    LifecycleAnomalyCountOverflow,
+    ActiveOrderObservationOverflow,
+}
+
+impl OrderReplaySummary {
+    #[must_use]
+    pub fn counts_reconcile(&self) -> bool {
+        self.parsed_records.checked_add(self.quarantine_count) == Some(self.framed_records)
+            && self
+                .applied_events
+                .checked_add(self.lifecycle_anomaly_count)
+                == Some(self.parsed_records)
+    }
+
+    pub fn checked_merge(self, other: Self) -> Result<Self, OrderReplaySummaryError> {
+        Ok(Self {
+            framed_records: self
+                .framed_records
+                .checked_add(other.framed_records)
+                .ok_or(OrderReplaySummaryError::FramedRecordOverflow)?,
+            parsed_records: self
+                .parsed_records
+                .checked_add(other.parsed_records)
+                .ok_or(OrderReplaySummaryError::ParsedRecordOverflow)?,
+            applied_events: self
+                .applied_events
+                .checked_add(other.applied_events)
+                .ok_or(OrderReplaySummaryError::AppliedEventOverflow)?,
+            quarantine_count: self
+                .quarantine_count
+                .checked_add(other.quarantine_count)
+                .ok_or(OrderReplaySummaryError::QuarantineCountOverflow)?,
+            lifecycle_anomaly_count: self
+                .lifecycle_anomaly_count
+                .checked_add(other.lifecycle_anomaly_count)
+                .ok_or(OrderReplaySummaryError::LifecycleAnomalyCountOverflow)?,
+            active_order_observations: self
+                .active_order_observations
+                .checked_add(other.active_order_observations)
+                .ok_or(OrderReplaySummaryError::ActiveOrderObservationOverflow)?,
+        })
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OrderSourceReference {
     EntryMatch {
@@ -329,6 +389,16 @@ impl TrimOrderStreamSetReplay<'_> {
             .iter()
             .all(|stream| stream.replay.counts_reconcile())
     }
+
+    pub fn combined_summary(&self) -> Result<OrderReplaySummary, OrderReplaySummaryError> {
+        self.streams
+            .iter()
+            .map(|stream| stream.replay.summary())
+            .try_fold(
+                OrderReplaySummary::default(),
+                OrderReplaySummary::checked_merge,
+            )
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -470,6 +540,18 @@ impl TrimOrderReplay<'_> {
                 .applied_events
                 .checked_add(self.lifecycle_anomalies.len())
                 == Some(self.parsed_records)
+    }
+
+    #[must_use]
+    pub fn summary(&self) -> OrderReplaySummary {
+        OrderReplaySummary {
+            framed_records: self.framed_records,
+            parsed_records: self.parsed_records,
+            applied_events: self.applied_events,
+            quarantine_count: self.quarantines.len(),
+            lifecycle_anomaly_count: self.lifecycle_anomalies.len(),
+            active_order_observations: self.lifecycle.len(),
+        }
     }
 }
 

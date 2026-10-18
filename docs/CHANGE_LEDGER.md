@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-18 - Reconcile independent Order replay counts
+
+- **Changed:** Added exact per-source and checked combined Order replay summaries for framed records, parsed records, applied events, quarantines, lifecycle anomalies, and active-order observations. Combined summaries add observations across independent streams without merging equal order identities.
+- **Why:** A delivery quality report needs compact Order-side accounting that reconciles parser and lifecycle outcomes while cross-stream event ordering remains unresolved. Naming active rows as observations avoids implying a globally deduplicated book.
+- **Validation:** A two-stream test proves framed 3 = parsed 3 + quarantines 0 and parsed 3 = applied 3 + anomalies 0, with two same-key active observations retained independently. A second test forces and rejects overflow for all six counters. All 151 default Rust tests pass.
+- **Related:** DEC-2026-008; Phase 1 independent replay, accounting, and quality-report gates.
+- **Follow-up:** Compose Order and Trade summaries into one delivery evidence report, still without temporal merging; validate it on representative paired current data when acquired.
+
+---
+
 ## 2026-10-18 - Reconcile independent Trade quantity and notional
 
 - **Changed:** Added an exact integer Trade value summary with parsed Trade count, total quantity, and `price_paise * quantity` notional. Raw Trade profiles now retain per-stream summaries and a checked combined summary while remaining independently ordered; every accumulator and merge is fallible.
