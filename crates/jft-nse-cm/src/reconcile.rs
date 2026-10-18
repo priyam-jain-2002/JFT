@@ -10,7 +10,8 @@ use crate::layouts::{
     CURRENT_FULL_ORDER_RECORD_LEN, CURRENT_FULL_TRADE_RECORD_LEN, FieldLayout,
     FullOrderLayoutVersion, FullTradeLayoutVersion, LEGACY_FULL_ORDER_RECORD_LEN,
     LEGACY_FULL_TRADE_100_RECORD_LEN, LEGACY_FULL_TRADE_101_RECORD_LEN, SourceDate,
-    TRIM_ORDER_FIELDS, TRIM_ORDER_RECORD_LEN, TRIM_TRADE_FIELDS, full_cm_layout_for_date,
+    TRIM_ORDER_FIELDS, TRIM_ORDER_RECORD_LEN, TRIM_TRADE_FIELDS, TRIM_TRADE_RECORD_LEN,
+    full_cm_layout_for_date,
 };
 use crate::lifecycle::{LifecycleAnomaly, LifecycleTransition, OrderKey, OrderLifecycle};
 use crate::manifest::{CmFilePrefix, CmPairedStreamSet, CmProduct, CmRecordKind};
@@ -823,6 +824,72 @@ pub struct TrimFramingLossEvidence<'a> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TrimSourceByteAccounting {
+    pub record_kind: CmRecordKind,
+    pub member: Option<u8>,
+    pub payload_width: usize,
+    pub framed_records: usize,
+    pub framed_bytes: usize,
+    pub residue_bytes: usize,
+    pub source_bytes: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TrimSourceByteAccountingError {
+    FramedBytesOverflow {
+        record_kind: CmRecordKind,
+        member: Option<u8>,
+    },
+    SourceBytesOverflow {
+        record_kind: CmRecordKind,
+        member: Option<u8>,
+    },
+}
+
+impl TrimSourceByteAccounting {
+    pub fn checked(
+        record_kind: CmRecordKind,
+        member: Option<u8>,
+        payload_width: usize,
+        framed_records: usize,
+        residue_bytes: usize,
+    ) -> Result<Self, TrimSourceByteAccountingError> {
+        let framed_bytes = payload_width
+            .checked_add(1)
+            .and_then(|width| framed_records.checked_mul(width))
+            .ok_or(TrimSourceByteAccountingError::FramedBytesOverflow {
+                record_kind,
+                member,
+            })?;
+        let source_bytes = framed_bytes.checked_add(residue_bytes).ok_or(
+            TrimSourceByteAccountingError::SourceBytesOverflow {
+                record_kind,
+                member,
+            },
+        )?;
+
+        Ok(Self {
+            record_kind,
+            member,
+            payload_width,
+            framed_records,
+            framed_bytes,
+            residue_bytes,
+            source_bytes,
+        })
+    }
+
+    #[must_use]
+    pub fn counts_reconcile(&self) -> bool {
+        self.payload_width
+            .checked_add(1)
+            .and_then(|width| self.framed_records.checked_mul(width))
+            == Some(self.framed_bytes)
+            && self.framed_bytes.checked_add(self.residue_bytes) == Some(self.source_bytes)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TrimQuarantineClassCount<'a> {
     pub record_kind: CmRecordKind,
     pub member: Option<u8>,
@@ -1030,6 +1097,41 @@ impl TrimOrderTradeEvidence<'_> {
         }
 
         evidence
+    }
+
+    /// Reconciles every framed byte and unconsumed residue byte for each
+    /// validated stream without needing to retain the complete source slice.
+    pub fn source_byte_accounting(
+        &self,
+    ) -> Result<Vec<TrimSourceByteAccounting>, TrimSourceByteAccountingError> {
+        let mut accounting = Vec::new();
+
+        for stream in &self.orders.streams {
+            accounting.push(TrimSourceByteAccounting::checked(
+                CmRecordKind::Orders,
+                stream.member,
+                TRIM_ORDER_RECORD_LEN,
+                stream.replay.framed_records,
+                stream
+                    .replay
+                    .framing_error
+                    .map_or(0, |error| error.unconsumed_raw.len()),
+            )?);
+        }
+        for stream in &self.trades.streams {
+            accounting.push(TrimSourceByteAccounting::checked(
+                CmRecordKind::Trades,
+                stream.member,
+                TRIM_TRADE_RECORD_LEN,
+                stream.source.framed_records,
+                stream
+                    .source
+                    .framing_error
+                    .map_or(0, |error| error.unconsumed_raw.len()),
+            )?);
+        }
+
+        Ok(accounting)
     }
 
     #[must_use]

@@ -11,7 +11,8 @@ use jft_nse_cm::reconcile::{
     JiffyStreamRangeOverlap, OrderEntryEvidence, OrderTradeJiffyRangeOverlap,
     SessionExcludedOrderIdentity, SessionOrderEntryOccurrence, SourceCoordinate,
     TradeCandidateStreamSetError, TrimEvidenceObservation, TrimEvidenceObservationKind,
-    TrimOrderTradeEvidenceError, profile_trim_order_trade_evidence,
+    TrimOrderTradeEvidenceError, TrimSourceByteAccounting, TrimSourceByteAccountingError,
+    profile_trim_order_trade_evidence,
 };
 
 const ENTRY_FIXTURE: &[u8] =
@@ -400,6 +401,77 @@ fn reports_nonzero_observations_in_deterministic_stream_and_kind_order() {
             .expect("trade framing loss")
             .unconsumed_raw
             .as_ptr()
+    );
+
+    let byte_accounting = evidence
+        .source_byte_accounting()
+        .expect("checked source byte accounting");
+    assert_eq!(
+        byte_accounting,
+        reversed
+            .source_byte_accounting()
+            .expect("reversed source byte accounting")
+    );
+    assert!(
+        byte_accounting
+            .iter()
+            .all(TrimSourceByteAccounting::counts_reconcile)
+    );
+    assert_eq!(
+        byte_accounting,
+        vec![
+            TrimSourceByteAccounting {
+                record_kind: CmRecordKind::Orders,
+                member: Some(1),
+                payload_width: TRIM_ORDER_RECORD_LEN,
+                framed_records: 3,
+                framed_bytes: (TRIM_ORDER_RECORD_LEN + 1) * 3,
+                residue_bytes: b"order-tail".len(),
+                source_bytes: (TRIM_ORDER_RECORD_LEN + 1) * 3 + b"order-tail".len(),
+            },
+            TrimSourceByteAccounting {
+                record_kind: CmRecordKind::Orders,
+                member: Some(2),
+                payload_width: TRIM_ORDER_RECORD_LEN,
+                framed_records: 1,
+                framed_bytes: TRIM_ORDER_RECORD_LEN + 1,
+                residue_bytes: 0,
+                source_bytes: TRIM_ORDER_RECORD_LEN + 1,
+            },
+            TrimSourceByteAccounting {
+                record_kind: CmRecordKind::Trades,
+                member: Some(1),
+                payload_width: TRIM_TRADE_RECORD_LEN,
+                framed_records: 2,
+                framed_bytes: (TRIM_TRADE_RECORD_LEN + 1) * 2,
+                residue_bytes: b"trade-tail".len(),
+                source_bytes: (TRIM_TRADE_RECORD_LEN + 1) * 2 + b"trade-tail".len(),
+            },
+            TrimSourceByteAccounting {
+                record_kind: CmRecordKind::Trades,
+                member: Some(2),
+                payload_width: TRIM_TRADE_RECORD_LEN,
+                framed_records: 0,
+                framed_bytes: 0,
+                residue_bytes: 0,
+                source_bytes: 0,
+            },
+        ]
+    );
+
+    assert_eq!(
+        TrimSourceByteAccounting::checked(CmRecordKind::Orders, Some(1), usize::MAX, 1, 0,),
+        Err(TrimSourceByteAccountingError::FramedBytesOverflow {
+            record_kind: CmRecordKind::Orders,
+            member: Some(1),
+        })
+    );
+    assert_eq!(
+        TrimSourceByteAccounting::checked(CmRecordKind::Trades, Some(2), 1, usize::MAX / 2, 2,),
+        Err(TrimSourceByteAccountingError::SourceBytesOverflow {
+            record_kind: CmRecordKind::Trades,
+            member: Some(2),
+        })
     );
 }
 

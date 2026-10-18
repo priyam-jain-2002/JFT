@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-19 - Reconcile every composed source byte
+
+- **Changed:** The composed Trim report now derives checked byte accounting for every validated Order and Trade stream: payload width, framed-record count, framed bytes including LF delimiters, unconsumed residue bytes, and reconstructed source bytes. Arithmetic overflow returns a typed error with record kind and member.
+- **Why:** Record counts and framing tails must reconcile to exact source-byte totals before representative delivery evidence can be trusted; empty streams and corrupt tails must remain explicit.
+- **Validation:** Exact integration assertions cover four streams: complete and tailed Orders, tailed Trades, and an empty Trade member. Every item reconciles, caller reversal is invariant, and forced framed-byte/source-byte overflow cases fail closed with the expected typed errors. All 162 default Rust tests pass.
+- **Related:** The zero-copy framing-loss entry immediately below; Phase 1 byte-accounting and delivery-quality gates.
+- **Follow-up:** Compare these totals with representative delivery file sizes and trigger size/MD5 evidence once current paired files are available.
+
+---
+
 ## 2026-10-19 - Compose zero-copy framing-loss provenance
 
 - **Changed:** The composed Trim report now exposes every Order and Trade framing loss in deterministic record-kind/member order. Each descriptor retains the exact stream, record index, byte offset, typed framing reason, and zero-copy unconsumed source tail.
