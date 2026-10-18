@@ -112,6 +112,43 @@ pub struct TradeOrderStreamCandidates {
     pub sell: StreamOrderSourceCandidates,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct TradeOrderCandidateProfile {
+    pub trade_count: usize,
+    pub reference_count: usize,
+    pub candidate_count: usize,
+    pub zero_candidate_references: usize,
+    pub single_candidate_references: usize,
+    pub multiple_candidate_references: usize,
+    pub expected_side_candidates: usize,
+    pub side_mismatch_candidates: usize,
+    pub maximum_candidates_per_reference: usize,
+}
+
+impl TradeOrderCandidateProfile {
+    #[must_use]
+    pub fn counts_reconcile(&self) -> bool {
+        let minimum_candidate_count = self
+            .multiple_candidate_references
+            .checked_mul(2)
+            .and_then(|count| count.checked_add(self.single_candidate_references));
+
+        self.trade_count.checked_mul(2) == Some(self.reference_count)
+            && self
+                .zero_candidate_references
+                .checked_add(self.single_candidate_references)
+                .and_then(|count| count.checked_add(self.multiple_candidate_references))
+                == Some(self.reference_count)
+            && self
+                .expected_side_candidates
+                .checked_add(self.side_mismatch_candidates)
+                == Some(self.candidate_count)
+            && minimum_candidate_count.is_some_and(|minimum| minimum <= self.candidate_count)
+            && self.maximum_candidates_per_reference <= self.candidate_count
+            && (self.reference_count > 0 || self.maximum_candidates_per_reference == 0)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct JiffyRegression {
     pub previous_coordinate: SourceCoordinate,
@@ -435,6 +472,48 @@ pub fn collect_trim_trade_stream_candidates(
     TradeOrderStreamCandidates {
         buy: collect_order_stream_candidates(orders, trade, trade.buy_order_number, Side::Buy),
         sell: collect_order_stream_candidates(orders, trade, trade.sell_order_number, Side::Sell),
+    }
+}
+
+#[must_use]
+pub fn profile_trim_trade_stream_candidates<'a>(
+    orders: &TrimOrderStreamSetReplay<'_>,
+    trades: impl IntoIterator<Item = &'a TradeEvent>,
+) -> TradeOrderCandidateProfile {
+    let mut profile = TradeOrderCandidateProfile::default();
+
+    for trade in trades {
+        profile.trade_count += 1;
+        let candidates = collect_trim_trade_stream_candidates(orders, trade);
+        observe_candidate_reference(&mut profile, &candidates.buy);
+        observe_candidate_reference(&mut profile, &candidates.sell);
+    }
+
+    profile
+}
+
+fn observe_candidate_reference(
+    profile: &mut TradeOrderCandidateProfile,
+    reference: &StreamOrderSourceCandidates,
+) {
+    profile.reference_count += 1;
+    profile.candidate_count += reference.candidates.len();
+    profile.maximum_candidates_per_reference = profile
+        .maximum_candidates_per_reference
+        .max(reference.candidates.len());
+
+    match reference.candidates.len() {
+        0 => profile.zero_candidate_references += 1,
+        1 => profile.single_candidate_references += 1,
+        _ => profile.multiple_candidate_references += 1,
+    }
+
+    for candidate in &reference.candidates {
+        if candidate.entry.side == reference.expected_side {
+            profile.expected_side_candidates += 1;
+        } else {
+            profile.side_mismatch_candidates += 1;
+        }
     }
 }
 

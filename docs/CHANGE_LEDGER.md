@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-18 - Quantify cross-stream trade-reference ambiguity
+
+- **Changed:** Added a pure aggregate profile over Trim Trade events and independently replayed Order streams. It reports trades, two-sided references, total candidates, zero/single/multiple-candidate references, expected-side and side-mismatched candidates, and maximum candidates per reference, with a count-reconciliation invariant.
+- **Why:** Candidate evidence needs a compact measurement layer before representative current data can inform a merge policy. The profile quantifies missing and ambiguous source membership without selecting an event order or causal match.
+- **Validation:** Three tests prove exact missing/unique counts, multiple-versus-side-mismatch separation across unsorted source members, and a reconciled all-zero profile. All 144 default Rust tests pass.
+- **Related:** DEC-2026-008; Phase 1 representative-data and trade-reference gates.
+- **Follow-up:** Run this profile on representative paired current Trim data when acquired; consult before implementing temporal matching, merge ordering, or trade-driven quantity effects.
+
+---
+
 ## 2026-10-18 - Preserve all cross-stream trade-reference candidates
 
 - **Changed:** Added deterministic collection of every exact Order-entry candidate for each Trim Trade buy/sell reference across independently replayed streams. Each candidate retains stream member, entry side, and source coordinate; missing, duplicate, and side-mismatched evidence is preserved without ranking.

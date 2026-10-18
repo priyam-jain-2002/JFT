@@ -6,8 +6,8 @@ use jft_nse_cm::manifest::{
 use jft_nse_cm::parser::parse_trim_trade;
 use jft_nse_cm::reconcile::{
     CmStreamSource, OrderEntryEvidence, OrderSourceReference, SourceCoordinate,
-    collect_trim_trade_stream_candidates, reconcile_trim_trade_references,
-    replay_trim_order_source, replay_trim_order_stream_set,
+    collect_trim_trade_stream_candidates, profile_trim_trade_stream_candidates,
+    reconcile_trim_trade_references, replay_trim_order_source, replay_trim_order_stream_set,
 };
 
 const ENTRY_FIXTURE: &[u8] =
@@ -250,4 +250,84 @@ fn retains_side_mismatch_as_candidate_evidence_instead_of_filtering_it() {
     assert_eq!(candidates.sell.candidates.len(), 1);
     assert_eq!(candidates.sell.candidates[0].member, Some(2));
     assert_eq!(candidates.sell.candidates[0].entry.side, Side::Buy);
+}
+
+#[test]
+fn profiles_missing_and_unique_references_without_temporal_claims() {
+    let sources = [CmStreamSource {
+        member: Some(1),
+        source: ENTRY_FIXTURE,
+    }];
+    let mut delivery = split_order_delivery();
+    delivery.members = vec![Some(1)];
+    let orders = replay_trim_order_stream_set(&delivery, &sources).expect("independent replay");
+    let event = trade();
+    let profile = profile_trim_trade_stream_candidates(&orders, [&event]);
+
+    assert_eq!(profile.trade_count, 1);
+    assert_eq!(profile.reference_count, 2);
+    assert_eq!(profile.candidate_count, 1);
+    assert_eq!(profile.zero_candidate_references, 1);
+    assert_eq!(profile.single_candidate_references, 1);
+    assert_eq!(profile.multiple_candidate_references, 0);
+    assert_eq!(profile.expected_side_candidates, 1);
+    assert_eq!(profile.side_mismatch_candidates, 0);
+    assert_eq!(profile.maximum_candidates_per_reference, 1);
+    assert!(profile.counts_reconcile());
+}
+
+#[test]
+fn profiles_multiple_and_side_mismatched_candidates_separately() {
+    let mut wrong_side = sell_entry();
+    wrong_side[36] = b'B';
+    let sources = [
+        CmStreamSource {
+            member: Some(3),
+            source: &wrong_side,
+        },
+        CmStreamSource {
+            member: Some(2),
+            source: ENTRY_FIXTURE,
+        },
+        CmStreamSource {
+            member: Some(1),
+            source: ENTRY_FIXTURE,
+        },
+    ];
+    let mut delivery = split_order_delivery();
+    delivery.members = vec![Some(1), Some(2), Some(3)];
+    let orders = replay_trim_order_stream_set(&delivery, &sources).expect("independent replay");
+    let event = trade();
+    let profile = profile_trim_trade_stream_candidates(&orders, [&event]);
+
+    assert_eq!(profile.trade_count, 1);
+    assert_eq!(profile.reference_count, 2);
+    assert_eq!(profile.candidate_count, 3);
+    assert_eq!(profile.zero_candidate_references, 0);
+    assert_eq!(profile.single_candidate_references, 1);
+    assert_eq!(profile.multiple_candidate_references, 1);
+    assert_eq!(profile.expected_side_candidates, 2);
+    assert_eq!(profile.side_mismatch_candidates, 1);
+    assert_eq!(profile.maximum_candidates_per_reference, 2);
+    assert!(profile.counts_reconcile());
+}
+
+#[test]
+fn empty_candidate_profile_is_zero_and_reconciled() {
+    let sources = [
+        CmStreamSource {
+            member: Some(2),
+            source: ENTRY_FIXTURE,
+        },
+        CmStreamSource {
+            member: Some(1),
+            source: ENTRY_FIXTURE,
+        },
+    ];
+    let orders = replay_trim_order_stream_set(&split_order_delivery(), &sources)
+        .expect("independent stream replay");
+    let profile = profile_trim_trade_stream_candidates(&orders, std::iter::empty());
+
+    assert_eq!(profile, Default::default());
+    assert!(profile.counts_reconcile());
 }
