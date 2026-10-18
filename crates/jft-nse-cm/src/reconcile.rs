@@ -10,7 +10,7 @@ use crate::layouts::{
     CURRENT_FULL_ORDER_RECORD_LEN, CURRENT_FULL_TRADE_RECORD_LEN, FieldLayout,
     FullOrderLayoutVersion, FullTradeLayoutVersion, LEGACY_FULL_ORDER_RECORD_LEN,
     LEGACY_FULL_TRADE_100_RECORD_LEN, LEGACY_FULL_TRADE_101_RECORD_LEN, SourceDate,
-    TRIM_ORDER_RECORD_LEN, full_cm_layout_for_date,
+    TRIM_ORDER_FIELDS, TRIM_ORDER_RECORD_LEN, TRIM_TRADE_FIELDS, full_cm_layout_for_date,
 };
 use crate::lifecycle::{LifecycleAnomaly, LifecycleTransition, OrderKey, OrderLifecycle};
 use crate::manifest::{CmFilePrefix, CmPairedStreamSet, CmProduct, CmRecordKind};
@@ -39,6 +39,7 @@ pub struct OrderEntryEvidence {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocatedQuarantine {
     pub coordinate: SourceCoordinate,
+    pub raw_jiffy: Option<ExchangeJiffy>,
     pub quarantined: QuarantinedRecord,
 }
 
@@ -1164,6 +1165,7 @@ pub fn replay_trim_order_source_with_observer(
             Err(quarantined) => {
                 replay.quarantines.push(LocatedQuarantine {
                     coordinate,
+                    raw_jiffy: validated_raw_jiffy(&quarantined.raw, TRIM_ORDER_FIELDS[3]),
                     quarantined,
                 });
                 continue;
@@ -1378,16 +1380,20 @@ fn reconcile_order_source_reference(
 
 #[must_use]
 pub fn profile_trim_order_jiffies(source: &[u8]) -> JiffySourceProfile<'_> {
-    profile_jiffies(parse_trim_order_source(source), |event| {
-        event.exchange_jiffy
-    })
+    profile_jiffies(
+        parse_trim_order_source(source),
+        TRIM_ORDER_FIELDS[3],
+        |event| event.exchange_jiffy,
+    )
 }
 
 #[must_use]
 pub fn profile_trim_trade_jiffies(source: &[u8]) -> JiffySourceProfile<'_> {
-    profile_jiffies(parse_trim_trade_source(source), |event| {
-        event.exchange_jiffy
-    })
+    profile_jiffies(
+        parse_trim_trade_source(source),
+        TRIM_TRADE_FIELDS[2],
+        |event| event.exchange_jiffy,
+    )
 }
 
 #[must_use]
@@ -1632,6 +1638,7 @@ fn profile_trim_trade_candidate_source<'a>(
             Err(quarantined) => {
                 profile.quarantines.push(LocatedQuarantine {
                     coordinate,
+                    raw_jiffy: validated_raw_jiffy(&quarantined.raw, TRIM_TRADE_FIELDS[2]),
                     quarantined,
                 });
                 continue;
@@ -1753,6 +1760,7 @@ fn ordered_trim_stream_sources<'a>(
 
 fn profile_jiffies<'a, T, const N: usize>(
     records: impl Iterator<Item = Result<LocatedParse<T, N>, FramingError<'a>>>,
+    jiffy_field: FieldLayout,
     exchange_jiffy: impl Fn(&T) -> ExchangeJiffy,
 ) -> JiffySourceProfile<'a> {
     let mut profile = JiffySourceProfile {
@@ -1783,6 +1791,7 @@ fn profile_jiffies<'a, T, const N: usize>(
             Err(quarantined) => {
                 profile.quarantines.push(LocatedQuarantine {
                     coordinate,
+                    raw_jiffy: validated_raw_jiffy(&quarantined.raw, jiffy_field),
                     quarantined,
                 });
                 continue;
@@ -1800,6 +1809,22 @@ fn profile_jiffies<'a, T, const N: usize>(
     }
 
     profile
+}
+
+fn validated_raw_jiffy(raw: &[u8], field: FieldLayout) -> Option<ExchangeJiffy> {
+    let value_bytes = raw.get(field.offset..field.end())?;
+    if !value_bytes.iter().all(u8::is_ascii_digit) {
+        return None;
+    }
+
+    value_bytes
+        .iter()
+        .try_fold(0_u64, |value, digit| {
+            value
+                .checked_mul(10)
+                .and_then(|current| current.checked_add(u64::from(digit - b'0')))
+        })
+        .map(ExchangeJiffy::new)
 }
 
 fn observe_jiffy_sequence(

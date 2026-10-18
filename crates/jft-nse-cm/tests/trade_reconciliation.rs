@@ -1,4 +1,5 @@
 use jft_nse_cm::events::{Session, Side};
+use jft_nse_cm::jiffy::ExchangeJiffy;
 use jft_nse_cm::layouts::{SourceDate, TRIM_ORDER_RECORD_LEN, TRIM_TRADE_RECORD_LEN};
 use jft_nse_cm::manifest::{
     CmFilePrefix, CmLogicalGroupKey, CmPairedStreamSet, CmProduct, CmRecordKind,
@@ -516,6 +517,10 @@ fn raw_trade_profile_retains_quarantine_and_framing_evidence() {
     assert_eq!(source.parsed_records, 1);
     assert_eq!(source.quarantines.len(), 1);
     assert_eq!(source.quarantines[0].coordinate.record_index, 1);
+    assert_eq!(
+        source.quarantines[0].raw_jiffy,
+        Some(ExchangeJiffy::new(91_200_611_817_222))
+    );
     assert_eq!(source.candidates.trade_count, 1);
     assert_eq!(source.value_summary.trade_count, 1);
     assert_eq!(source.value_summary.total_quantity, 25);

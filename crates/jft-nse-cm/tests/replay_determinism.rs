@@ -78,6 +78,10 @@ fn parser_quarantine_retains_raw_bytes_and_replay_continues() {
         replay.quarantines[0].quarantined.raw,
         invalid[..TRIM_ORDER_RECORD_LEN]
     );
+    assert_eq!(
+        replay.quarantines[0].raw_jiffy,
+        Some(ExchangeJiffy::new(91_200_611_817_221))
+    );
     assert_eq!(replay.lifecycle.len(), 1);
 }
 

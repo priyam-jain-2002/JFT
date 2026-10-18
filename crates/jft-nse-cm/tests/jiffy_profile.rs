@@ -106,6 +106,7 @@ fn quarantined_records_are_accounted_but_excluded_from_jiffy_observations() {
     assert_eq!(profile.quarantines.len(), 1);
     assert_eq!(profile.sequence.observation_count, 2);
     assert_eq!(profile.quarantines[0].coordinate.record_index, 1);
+    assert_eq!(profile.quarantines[0].raw_jiffy, None);
 }
 
 #[test]

@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-19 - Preserve validated raw jiffies on quarantines
+
+- **Changed:** Located Order and Trade quarantines now retain an optional exact `ExchangeJiffy` independently decoded from the record's documented raw jiffy bytes. Valid digit-only bytes are preserved even when another field rejects the record; invalid jiffy bytes yield `None`. Quarantined records remain excluded from parsed-event and jiffy-sequence counts.
+- **Why:** Anomaly dossiers need raw timing provenance without accepting an otherwise rejected record or forcing analysts to reparse raw NSE bytes downstream.
+- **Validation:** Targeted tests prove exact Order and Trade jiffies survive unrelated activity/price rejection, while an invalid-jiffy quarantine retains `None` and stays excluded from observations. All 161 default Rust tests pass.
+- **Related:** Phase 1 raw provenance/quarantine and raw-jiffy evidence gates; Rust/Python ownership boundary.
+- **Follow-up:** Representative runs must retain delivery/member/coordinate context around these quarantines; durable file identity remains part of the future canonical manifest decision.
+
+---
+
 ## 2026-10-18 - Replace stale Phase 1 immediate actions
 
 - **Changed:** The governing document's immediate-action list now reflects the implemented fixture-first parser, replay, book, jiffy, session, and evidence-reporting work. The ordered next gates are representative current paired data/triggers, full reconciliation runs, ambiguity resolution, owner review of proposed DEC-2026-009, then canonical output/hashes and the Python conformance reader.
