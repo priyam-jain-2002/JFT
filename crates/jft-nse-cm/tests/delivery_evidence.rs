@@ -1,6 +1,6 @@
 use jft_nse_cm::events::{MarketSegment, OrderActivity, Session, Side};
 use jft_nse_cm::jiffy::ExchangeJiffy;
-use jft_nse_cm::layouts::{SourceDate, TRIM_ORDER_RECORD_LEN};
+use jft_nse_cm::layouts::{SourceDate, TRIM_ORDER_RECORD_LEN, TRIM_TRADE_RECORD_LEN};
 use jft_nse_cm::manifest::{
     CmFilePrefix, CmLogicalGroupKey, CmPairedStreamSet, CmProduct, CmRecordKind,
 };
@@ -247,6 +247,13 @@ fn reports_nonzero_observations_in_deterministic_stream_and_kind_order() {
         &trade_sources,
     )
     .expect("delivery evidence");
+    let reversed = profile_trim_order_trade_evidence(
+        &order_delivery,
+        &[order_sources[1], order_sources[0]],
+        &trade_delivery,
+        &[trade_sources[1], trade_sources[0]],
+    )
+    .expect("reversed delivery evidence");
 
     assert!(evidence.counts_reconcile());
     assert_eq!(
@@ -288,6 +295,71 @@ fn reports_nonzero_observations_in_deterministic_stream_and_kind_order() {
                 count: 1,
             },
         ]
+    );
+
+    let quarantines = evidence.quarantine_evidence();
+    assert_eq!(quarantines, reversed.quarantine_evidence());
+    assert_eq!(quarantines.len(), 2);
+    assert!(std::ptr::eq(
+        quarantines[0].located,
+        &evidence.orders.streams[0].replay.quarantines[0]
+    ));
+    assert!(std::ptr::eq(
+        quarantines[1].located,
+        &evidence.trades.streams[0].source.quarantines[0]
+    ));
+    assert_eq!(quarantines[0].record_kind, CmRecordKind::Orders);
+    assert_eq!(quarantines[0].member, Some(1));
+    assert_eq!(
+        quarantines[0].located.coordinate,
+        SourceCoordinate {
+            record_index: 2,
+            byte_offset: (TRIM_ORDER_RECORD_LEN + 1) * 2,
+        }
+    );
+    assert_eq!(
+        quarantines[0].located.raw_jiffy,
+        Some(ExchangeJiffy::new(91_200_611_817_221))
+    );
+    assert_eq!(
+        quarantines[0].located.quarantined.raw,
+        invalid_order[..TRIM_ORDER_RECORD_LEN]
+    );
+    assert_eq!(
+        quarantines[0]
+            .located
+            .quarantined
+            .field
+            .expect("order failure field")
+            .name,
+        "activity"
+    );
+
+    assert_eq!(quarantines[1].record_kind, CmRecordKind::Trades);
+    assert_eq!(quarantines[1].member, Some(1));
+    assert_eq!(
+        quarantines[1].located.coordinate,
+        SourceCoordinate {
+            record_index: 1,
+            byte_offset: TRIM_TRADE_RECORD_LEN + 1,
+        }
+    );
+    assert_eq!(
+        quarantines[1].located.raw_jiffy,
+        Some(ExchangeJiffy::new(91_200_611_817_222))
+    );
+    assert_eq!(
+        quarantines[1].located.quarantined.raw,
+        invalid_trade[..TRIM_TRADE_RECORD_LEN]
+    );
+    assert_eq!(
+        quarantines[1]
+            .located
+            .quarantined
+            .field
+            .expect("trade failure field")
+            .name,
+        "quantity"
     );
 }
 

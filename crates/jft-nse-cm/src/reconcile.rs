@@ -808,6 +808,13 @@ pub struct OrderTradeJiffyRangeOverlap {
     pub trade_member: Option<u8>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TrimQuarantineEvidence<'a> {
+    pub record_kind: CmRecordKind,
+    pub member: Option<u8>,
+    pub located: &'a LocatedQuarantine,
+}
+
 impl TrimOrderTradeEvidence<'_> {
     #[must_use]
     pub fn counts_reconcile(&self) -> bool {
@@ -908,6 +915,35 @@ impl TrimOrderTradeEvidence<'_> {
         }
 
         observations
+    }
+
+    /// Borrows every located quarantine in deterministic record-kind, member,
+    /// and source-coordinate order. The enclosing report retains delivery
+    /// identity; this view adds record kind and stream without copying raw data.
+    #[must_use]
+    pub fn quarantine_evidence(&self) -> Vec<TrimQuarantineEvidence<'_>> {
+        let mut evidence = Vec::new();
+
+        for stream in &self.orders.streams {
+            for located in &stream.replay.quarantines {
+                evidence.push(TrimQuarantineEvidence {
+                    record_kind: CmRecordKind::Orders,
+                    member: stream.member,
+                    located,
+                });
+            }
+        }
+        for stream in &self.trades.streams {
+            for located in &stream.source.quarantines {
+                evidence.push(TrimQuarantineEvidence {
+                    record_kind: CmRecordKind::Trades,
+                    member: stream.member,
+                    located,
+                });
+            }
+        }
+
+        evidence
     }
 
     #[must_use]

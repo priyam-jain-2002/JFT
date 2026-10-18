@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-19 - Compose deterministic quarantine provenance
+
+- **Changed:** The composed Trim evidence report now exposes a borrowed, allocation-light quarantine view ordered by record kind, validated stream member, and source coordinate. Each item retains the existing raw bytes, failure field/reason, optional validated raw jiffy, and exact record index/byte offset without copying the rejected record.
+- **Why:** Counts alone are insufficient for representative anomaly review, and downstream Python must not reparse raw NSE bytes to recover provenance.
+- **Validation:** An integration test proves exact Order-then-Trade ordering, member and coordinates, failure fields, raw bytes, validated raw jiffies, pointer identity with the authoritative stored quarantines, and identical evidence when caller source order is reversed. All 161 default Rust tests pass.
+- **Related:** The raw-jiffy quarantine entry immediately below; Phase 1 quarantine provenance and Rust/Python boundary gates.
+- **Follow-up:** Durable logical filename/hash identity remains intentionally pending proposed DEC-2026-009; the enclosing report already preserves validated delivery identity.
+
+---
+
 ## 2026-10-19 - Preserve validated raw jiffies on quarantines
 
 - **Changed:** Located Order and Trade quarantines now retain an optional exact `ExchangeJiffy` independently decoded from the record's documented raw jiffy bytes. Valid digit-only bytes are preserved even when another field rejects the record; invalid jiffy bytes yield `None`. Quarantined records remain excluded from parsed-event and jiffy-sequence counts.
