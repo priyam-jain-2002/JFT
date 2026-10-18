@@ -514,6 +514,7 @@ fn raw_trade_profile_retains_quarantine_and_framing_evidence() {
 
     assert!(profile.counts_reconcile());
     assert_eq!(source.framed_records, 2);
+    assert_eq!(source.source_bytes, raw_trades.len());
     assert_eq!(source.parsed_records, 1);
     assert_eq!(source.quarantines.len(), 1);
     assert_eq!(source.quarantines[0].coordinate.record_index, 1);
@@ -532,6 +533,10 @@ fn raw_trade_profile_retains_quarantine_and_framing_evidence() {
             .unconsumed_raw,
         b"partial-tail"
     );
+
+    let mut invalid_profile = profile.clone();
+    invalid_profile.streams[0].source.source_bytes += 1;
+    assert!(!invalid_profile.counts_reconcile());
 }
 
 #[test]

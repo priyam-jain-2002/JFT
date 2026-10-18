@@ -385,6 +385,8 @@ fn paired_stream_summary_reconciles_without_merging_active_orders() {
 
     assert!(summary.counts_reconcile());
     assert_eq!(summary.framed_records, 3);
+    assert_eq!(summary.source_bytes, (TRIM_ORDER_RECORD_LEN + 1) * 3);
+    assert_eq!(summary.framing_residue_bytes, 0);
     assert_eq!(summary.parsed_records, 3);
     assert_eq!(summary.applied_events, 3);
     assert_eq!(summary.quarantine_count, 0);
@@ -396,15 +398,22 @@ fn paired_stream_summary_reconciles_without_merging_active_orders() {
 fn source_reconciliation_rejects_session_count_mismatch() {
     let mut replay = replay_trim_order_source(ENTRY_FIXTURE);
     assert!(replay.counts_reconcile());
+    assert_eq!(replay.source_bytes, ENTRY_FIXTURE.len());
     assert_eq!(replay.session_counts.regular_market, 1);
 
     replay.session_counts.regular_market = 0;
+    assert!(!replay.counts_reconcile());
+
+    let mut replay = replay_trim_order_source(ENTRY_FIXTURE);
+    replay.source_bytes += 1;
     assert!(!replay.counts_reconcile());
 }
 
 #[test]
 fn order_replay_summary_fails_closed_on_every_count_overflow() {
     let one = OrderReplaySummary {
+        source_bytes: 1,
+        framing_residue_bytes: 1,
         framed_records: 1,
         parsed_records: 1,
         applied_events: 1,
@@ -413,6 +422,23 @@ fn order_replay_summary_fails_closed_on_every_count_overflow() {
         active_order_observations: 1,
         session_counts: Default::default(),
     };
+
+    assert_eq!(
+        OrderReplaySummary {
+            source_bytes: usize::MAX,
+            ..Default::default()
+        }
+        .checked_merge(one),
+        Err(OrderReplaySummaryError::SourceBytesOverflow)
+    );
+    assert_eq!(
+        OrderReplaySummary {
+            framing_residue_bytes: usize::MAX,
+            ..Default::default()
+        }
+        .checked_merge(one),
+        Err(OrderReplaySummaryError::FramingResidueBytesOverflow)
+    );
 
     assert_eq!(
         OrderReplaySummary {

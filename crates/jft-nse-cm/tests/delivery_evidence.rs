@@ -460,17 +460,33 @@ fn reports_nonzero_observations_in_deterministic_stream_and_kind_order() {
     );
 
     assert_eq!(
-        TrimSourceByteAccounting::checked(CmRecordKind::Orders, Some(1), usize::MAX, 1, 0,),
+        TrimSourceByteAccounting::checked(CmRecordKind::Orders, Some(1), usize::MAX, 1, 0, 0,),
         Err(TrimSourceByteAccountingError::FramedBytesOverflow {
             record_kind: CmRecordKind::Orders,
             member: Some(1),
         })
     );
     assert_eq!(
-        TrimSourceByteAccounting::checked(CmRecordKind::Trades, Some(2), 1, usize::MAX / 2, 2,),
+        TrimSourceByteAccounting::checked(CmRecordKind::Trades, Some(2), 1, usize::MAX / 2, 2, 0,),
         Err(TrimSourceByteAccountingError::SourceBytesOverflow {
             record_kind: CmRecordKind::Trades,
             member: Some(2),
+        })
+    );
+    assert_eq!(
+        TrimSourceByteAccounting::checked(
+            CmRecordKind::Orders,
+            Some(1),
+            TRIM_ORDER_RECORD_LEN,
+            1,
+            0,
+            TRIM_ORDER_RECORD_LEN + 2,
+        ),
+        Err(TrimSourceByteAccountingError::SourceBytesMismatch {
+            record_kind: CmRecordKind::Orders,
+            member: Some(1),
+            actual_source_bytes: TRIM_ORDER_RECORD_LEN + 2,
+            accounted_source_bytes: TRIM_ORDER_RECORD_LEN + 1,
         })
     );
 }

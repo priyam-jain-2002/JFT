@@ -62,6 +62,8 @@ fn counts_adjacent_ties_and_the_largest_equal_jiffy_run() {
     let profile = profile_trim_order_jiffies(&source);
 
     assert!(profile.counts_reconcile());
+    assert_eq!(profile.payload_width, TRIM_ORDER_RECORD_LEN);
+    assert_eq!(profile.source_bytes, source.len());
     assert_eq!(profile.sequence.observation_count, 3);
     assert_eq!(profile.sequence.equal_consecutive_observations, 2);
     assert_eq!(profile.sequence.largest_equal_run, 3);
@@ -137,6 +139,8 @@ fn order_and_trade_ranges_report_overlap_without_selecting_merge_order() {
 
     assert!(orders.counts_reconcile());
     assert!(trades.counts_reconcile());
+    assert_eq!(trades.payload_width, TRIM_TRADE_RECORD_LEN);
+    assert_eq!(trades.source_bytes, TRADE_FIXTURE.len());
     assert_eq!(trades.framed_records, 1);
     assert_eq!(trades.parsed_records, 1);
     assert!(orders.sequence.range_overlaps(&trades.sequence));

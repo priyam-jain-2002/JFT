@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-19 - Verify byte accounting against actual input length
+
+- **Changed:** Order replay, raw Trade profiling, and standalone Order/Trade jiffy profiling now record the caller's actual source-slice length at ingestion. Their reconciliation invariants independently compare that value with fixed-width framed bytes plus preserved residue. Composed byte accounting now returns a distinct typed mismatch error instead of deriving `source_bytes` from the values being checked; combined Order summaries merge actual source and residue bytes with checked arithmetic.
+- **Why:** The previous composed accounting reconstructed `source_bytes` from framed bytes plus residue, so it could not independently detect an internal byte-loss bug. That evidence was internally consistent but weaker than the documented source-byte guarantee.
+- **Validation:** Tests mutate stored Order and Trade source lengths and prove reconciliation fails; exact Order/Trade jiffy-profile widths and actual lengths are asserted; composed accounting proves matching inputs, arithmetic overflow errors, and an explicit actual-versus-accounted mismatch error. All 162 default Rust tests pass.
+- **Related:** The composed source-byte accounting entry immediately below; Phase 1 source-integrity invariant.
+- **Follow-up:** Compare stored actual lengths with delivery trigger size evidence when representative files become available.
+
+---
+
 ## 2026-10-19 - Reconcile every composed source byte
 
 - **Changed:** The composed Trim report now derives checked byte accounting for every validated Order and Trade stream: payload width, framed-record count, framed bytes including LF delimiters, unconsumed residue bytes, and reconstructed source bytes. Arithmetic overflow returns a typed error with record kind and member.

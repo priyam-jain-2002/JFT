@@ -67,6 +67,7 @@ pub struct TrimOrderReplay<'a> {
     pub order_entries: BTreeMap<OrderKey, OrderEntryEvidence>,
     pub jiffy_sequence: JiffySequenceProfile,
     pub session_counts: SessionObservationCounts,
+    pub source_bytes: usize,
     pub framed_records: usize,
     pub parsed_records: usize,
     pub applied_events: usize,
@@ -77,6 +78,8 @@ pub struct TrimOrderReplay<'a> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct OrderReplaySummary {
+    pub source_bytes: usize,
+    pub framing_residue_bytes: usize,
     pub framed_records: usize,
     pub parsed_records: usize,
     pub applied_events: usize,
@@ -128,6 +131,8 @@ impl SessionObservationCounts {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OrderReplaySummaryError {
+    SourceBytesOverflow,
+    FramingResidueBytesOverflow,
     FramedRecordOverflow,
     ParsedRecordOverflow,
     AppliedEventOverflow,
@@ -140,7 +145,12 @@ pub enum OrderReplaySummaryError {
 impl OrderReplaySummary {
     #[must_use]
     pub fn counts_reconcile(&self) -> bool {
-        self.parsed_records.checked_add(self.quarantine_count) == Some(self.framed_records)
+        byte_counts_reconcile(
+            TRIM_ORDER_RECORD_LEN,
+            self.source_bytes,
+            self.framed_records,
+            self.framing_residue_bytes,
+        ) && self.parsed_records.checked_add(self.quarantine_count) == Some(self.framed_records)
             && self
                 .applied_events
                 .checked_add(self.lifecycle_anomaly_count)
@@ -150,6 +160,14 @@ impl OrderReplaySummary {
 
     pub fn checked_merge(self, other: Self) -> Result<Self, OrderReplaySummaryError> {
         Ok(Self {
+            source_bytes: self
+                .source_bytes
+                .checked_add(other.source_bytes)
+                .ok_or(OrderReplaySummaryError::SourceBytesOverflow)?,
+            framing_residue_bytes: self
+                .framing_residue_bytes
+                .checked_add(other.framing_residue_bytes)
+                .ok_or(OrderReplaySummaryError::FramingResidueBytesOverflow)?,
             framed_records: self
                 .framed_records
                 .checked_add(other.framed_records)
@@ -359,6 +377,8 @@ impl JiffySequenceProfile {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct JiffySourceProfile<'a> {
     pub sequence: JiffySequenceProfile,
+    pub payload_width: usize,
+    pub source_bytes: usize,
     pub framed_records: usize,
     pub parsed_records: usize,
     pub quarantines: Vec<LocatedQuarantine>,
@@ -368,7 +388,13 @@ pub struct JiffySourceProfile<'a> {
 impl JiffySourceProfile<'_> {
     #[must_use]
     pub fn counts_reconcile(&self) -> bool {
-        self.parsed_records.checked_add(self.quarantines.len()) == Some(self.framed_records)
+        byte_counts_reconcile(
+            self.payload_width,
+            self.source_bytes,
+            self.framed_records,
+            self.framing_error
+                .map_or(0, |error| error.unconsumed_raw.len()),
+        ) && self.parsed_records.checked_add(self.quarantines.len()) == Some(self.framed_records)
             && self.sequence.observation_count == self.parsed_records
     }
 }
@@ -687,6 +713,7 @@ pub struct TradeCandidateSourceProfile<'a> {
     pub value_summary: TradeValueSummary,
     pub jiffy_sequence: JiffySequenceProfile,
     pub session_counts: SessionObservationCounts,
+    pub source_bytes: usize,
     pub framed_records: usize,
     pub parsed_records: usize,
     pub quarantines: Vec<LocatedQuarantine>,
@@ -696,7 +723,13 @@ pub struct TradeCandidateSourceProfile<'a> {
 impl TradeCandidateSourceProfile<'_> {
     #[must_use]
     pub fn counts_reconcile(&self) -> bool {
-        self.parsed_records.checked_add(self.quarantines.len()) == Some(self.framed_records)
+        byte_counts_reconcile(
+            TRIM_TRADE_RECORD_LEN,
+            self.source_bytes,
+            self.framed_records,
+            self.framing_error
+                .map_or(0, |error| error.unconsumed_raw.len()),
+        ) && self.parsed_records.checked_add(self.quarantines.len()) == Some(self.framed_records)
             && self.candidates.trade_count == self.parsed_records
             && self.value_summary.trade_count == self.parsed_records
             && self.jiffy_sequence.observation_count == self.parsed_records
@@ -844,6 +877,12 @@ pub enum TrimSourceByteAccountingError {
         record_kind: CmRecordKind,
         member: Option<u8>,
     },
+    SourceBytesMismatch {
+        record_kind: CmRecordKind,
+        member: Option<u8>,
+        actual_source_bytes: usize,
+        accounted_source_bytes: usize,
+    },
 }
 
 impl TrimSourceByteAccounting {
@@ -853,6 +892,7 @@ impl TrimSourceByteAccounting {
         payload_width: usize,
         framed_records: usize,
         residue_bytes: usize,
+        source_bytes: usize,
     ) -> Result<Self, TrimSourceByteAccountingError> {
         let framed_bytes = payload_width
             .checked_add(1)
@@ -861,12 +901,20 @@ impl TrimSourceByteAccounting {
                 record_kind,
                 member,
             })?;
-        let source_bytes = framed_bytes.checked_add(residue_bytes).ok_or(
+        let accounted_source_bytes = framed_bytes.checked_add(residue_bytes).ok_or(
             TrimSourceByteAccountingError::SourceBytesOverflow {
                 record_kind,
                 member,
             },
         )?;
+        if accounted_source_bytes != source_bytes {
+            return Err(TrimSourceByteAccountingError::SourceBytesMismatch {
+                record_kind,
+                member,
+                actual_source_bytes: source_bytes,
+                accounted_source_bytes,
+            });
+        }
 
         Ok(Self {
             record_kind,
@@ -1116,6 +1164,7 @@ impl TrimOrderTradeEvidence<'_> {
                     .replay
                     .framing_error
                     .map_or(0, |error| error.unconsumed_raw.len()),
+                stream.replay.source_bytes,
             )?);
         }
         for stream in &self.trades.streams {
@@ -1128,6 +1177,7 @@ impl TrimOrderTradeEvidence<'_> {
                     .source
                     .framing_error
                     .map_or(0, |error| error.unconsumed_raw.len()),
+                stream.source.source_bytes,
             )?);
         }
 
@@ -1321,7 +1371,13 @@ impl TrimOrderReplay<'_> {
 
     #[must_use]
     pub fn counts_reconcile(&self) -> bool {
-        self.parsed_records.checked_add(self.quarantines.len()) == Some(self.framed_records)
+        byte_counts_reconcile(
+            TRIM_ORDER_RECORD_LEN,
+            self.source_bytes,
+            self.framed_records,
+            self.framing_error
+                .map_or(0, |error| error.unconsumed_raw.len()),
+        ) && self.parsed_records.checked_add(self.quarantines.len()) == Some(self.framed_records)
             && self
                 .applied_events
                 .checked_add(self.lifecycle_anomalies.len())
@@ -1333,6 +1389,10 @@ impl TrimOrderReplay<'_> {
     #[must_use]
     pub fn summary(&self) -> OrderReplaySummary {
         OrderReplaySummary {
+            source_bytes: self.source_bytes,
+            framing_residue_bytes: self
+                .framing_error
+                .map_or(0, |error| error.unconsumed_raw.len()),
             framed_records: self.framed_records,
             parsed_records: self.parsed_records,
             applied_events: self.applied_events,
@@ -1360,6 +1420,7 @@ pub fn replay_trim_order_source_with_observer(
         order_entries: BTreeMap::new(),
         jiffy_sequence: JiffySequenceProfile::default(),
         session_counts: SessionObservationCounts::default(),
+        source_bytes: source.len(),
         framed_records: 0,
         parsed_records: 0,
         applied_events: 0,
@@ -1606,6 +1667,7 @@ fn reconcile_order_source_reference(
 pub fn profile_trim_order_jiffies(source: &[u8]) -> JiffySourceProfile<'_> {
     profile_jiffies(
         parse_trim_order_source(source),
+        source.len(),
         TRIM_ORDER_FIELDS[3],
         |event| event.exchange_jiffy,
     )
@@ -1615,6 +1677,7 @@ pub fn profile_trim_order_jiffies(source: &[u8]) -> JiffySourceProfile<'_> {
 pub fn profile_trim_trade_jiffies(source: &[u8]) -> JiffySourceProfile<'_> {
     profile_jiffies(
         parse_trim_trade_source(source),
+        source.len(),
         TRIM_TRADE_FIELDS[2],
         |event| event.exchange_jiffy,
     )
@@ -1836,6 +1899,7 @@ fn profile_trim_trade_candidate_source<'a>(
         value_summary: TradeValueSummary::default(),
         jiffy_sequence: JiffySequenceProfile::default(),
         session_counts: SessionObservationCounts::default(),
+        source_bytes: source.len(),
         framed_records: 0,
         parsed_records: 0,
         quarantines: Vec::new(),
@@ -1984,11 +2048,14 @@ fn ordered_trim_stream_sources<'a>(
 
 fn profile_jiffies<'a, T, const N: usize>(
     records: impl Iterator<Item = Result<LocatedParse<T, N>, FramingError<'a>>>,
+    source_bytes: usize,
     jiffy_field: FieldLayout,
     exchange_jiffy: impl Fn(&T) -> ExchangeJiffy,
 ) -> JiffySourceProfile<'a> {
     let mut profile = JiffySourceProfile {
         sequence: JiffySequenceProfile::default(),
+        payload_width: N,
+        source_bytes,
         framed_records: 0,
         parsed_records: 0,
         quarantines: Vec::new(),
@@ -2049,6 +2116,19 @@ fn validated_raw_jiffy(raw: &[u8], field: FieldLayout) -> Option<ExchangeJiffy> 
                 .and_then(|current| current.checked_add(u64::from(digit - b'0')))
         })
         .map(ExchangeJiffy::new)
+}
+
+fn byte_counts_reconcile(
+    payload_width: usize,
+    source_bytes: usize,
+    framed_records: usize,
+    residue_bytes: usize,
+) -> bool {
+    payload_width
+        .checked_add(1)
+        .and_then(|width| framed_records.checked_mul(width))
+        .and_then(|framed_bytes| framed_bytes.checked_add(residue_bytes))
+        == Some(source_bytes)
 }
 
 fn observe_jiffy_sequence(
