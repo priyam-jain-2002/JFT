@@ -362,6 +362,45 @@ fn reports_nonzero_observations_in_deterministic_stream_and_kind_order() {
             .name,
         "quantity"
     );
+
+    let framing_losses = evidence.framing_loss_evidence();
+    assert_eq!(framing_losses, reversed.framing_loss_evidence());
+    assert_eq!(framing_losses.len(), 2);
+    assert_eq!(framing_losses[0].record_kind, CmRecordKind::Orders);
+    assert_eq!(framing_losses[0].member, Some(1));
+    assert_eq!(framing_losses[0].error.record_index, 3);
+    assert_eq!(
+        framing_losses[0].error.byte_offset,
+        (TRIM_ORDER_RECORD_LEN + 1) * 3
+    );
+    assert_eq!(framing_losses[0].error.unconsumed_raw, b"order-tail");
+    assert_eq!(
+        framing_losses[0].error.unconsumed_raw.as_ptr(),
+        evidence.orders.streams[0]
+            .replay
+            .framing_error
+            .expect("order framing loss")
+            .unconsumed_raw
+            .as_ptr()
+    );
+
+    assert_eq!(framing_losses[1].record_kind, CmRecordKind::Trades);
+    assert_eq!(framing_losses[1].member, Some(1));
+    assert_eq!(framing_losses[1].error.record_index, 2);
+    assert_eq!(
+        framing_losses[1].error.byte_offset,
+        (TRIM_TRADE_RECORD_LEN + 1) * 2
+    );
+    assert_eq!(framing_losses[1].error.unconsumed_raw, b"trade-tail");
+    assert_eq!(
+        framing_losses[1].error.unconsumed_raw.as_ptr(),
+        evidence.trades.streams[0]
+            .source
+            .framing_error
+            .expect("trade framing loss")
+            .unconsumed_raw
+            .as_ptr()
+    );
 }
 
 #[test]

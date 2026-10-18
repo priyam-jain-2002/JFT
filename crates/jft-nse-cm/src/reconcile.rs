@@ -816,6 +816,13 @@ pub struct TrimQuarantineEvidence<'a> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TrimFramingLossEvidence<'a> {
+    pub record_kind: CmRecordKind,
+    pub member: Option<u8>,
+    pub error: FramingError<'a>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TrimQuarantineClassCount<'a> {
     pub record_kind: CmRecordKind,
     pub member: Option<u8>,
@@ -995,6 +1002,34 @@ impl TrimOrderTradeEvidence<'_> {
         }
 
         classes
+    }
+
+    /// Copies only the small framing-error descriptors while preserving their
+    /// zero-copy tail slices in deterministic Order/Trade and member order.
+    #[must_use]
+    pub fn framing_loss_evidence(&self) -> Vec<TrimFramingLossEvidence<'_>> {
+        let mut evidence = Vec::new();
+
+        for stream in &self.orders.streams {
+            if let Some(error) = stream.replay.framing_error {
+                evidence.push(TrimFramingLossEvidence {
+                    record_kind: CmRecordKind::Orders,
+                    member: stream.member,
+                    error,
+                });
+            }
+        }
+        for stream in &self.trades.streams {
+            if let Some(error) = stream.source.framing_error {
+                evidence.push(TrimFramingLossEvidence {
+                    record_kind: CmRecordKind::Trades,
+                    member: stream.member,
+                    error,
+                });
+            }
+        }
+
+        evidence
     }
 
     #[must_use]

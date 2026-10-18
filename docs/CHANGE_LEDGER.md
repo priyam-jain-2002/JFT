@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-19 - Compose zero-copy framing-loss provenance
+
+- **Changed:** The composed Trim report now exposes every Order and Trade framing loss in deterministic record-kind/member order. Each descriptor retains the exact stream, record index, byte offset, typed framing reason, and zero-copy unconsumed source tail.
+- **Why:** A framing-loss count cannot explain how much input was lost or support source-level remediation; representative quality review needs the exact residue without copying it or attempting unsafe resynchronization.
+- **Validation:** The composed-evidence integration test proves exact Order/Trade ordering, members, record indices, offsets, `order-tail`/`trade-tail` bytes, pointer identity with authoritative framing errors, and caller-source-order invariance. All 162 default Rust tests pass.
+- **Related:** Phase 1 framing/residue and composed evidence-report gates.
+- **Follow-up:** Representative runs must treat any framing loss as explicit unreconciled residue and retain its delivery/member context; no resynchronization policy has been selected.
+
+---
+
 ## 2026-10-19 - Aggregate exact quarantine classes
 
 - **Changed:** The composed Trim report now aggregates quarantines by record kind, validated stream member, exact failure field, and full quarantine reason in deterministic first-observed order. Each class separately counts total records and records with independently validated raw jiffies, with a reconciliation invariant.
