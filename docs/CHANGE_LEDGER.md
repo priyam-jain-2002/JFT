@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-19 - Stream successful Trade candidate evidence
+
+- **Changed:** Raw Trim Trade profiling now offers a streaming observer for every successfully parsed Trade in validated member order. Each observation carries the member, exact source coordinate, canonical event, complete raw 82-byte record, and full buy/sell Order-entry candidate sets; the existing aggregate API delegates to this path with a no-op observer and retains no whole-delivery Trade vector.
+- **Why:** Aggregate candidate counts cannot support event-level reconciliation or a future canonical writer, while downstream Python must not reparse raw Trade bytes. A single parse/candidate path prevents event evidence from drifting from aggregate diagnostics.
+- **Validation:** The focused integration test combines valid Trades, one field quarantine, a corrupt tail, and reversed caller source order. It proves only successful Trades are emitted, in deterministic validated-member order, with exact event/raw/coordinate and complete member-specific buy/sell candidate evidence. All 163 default Rust tests pass.
+- **Related:** Phase 1 Trade reconciliation and Rust/Python boundary gates.
+- **Follow-up:** Connect this observer to fallible durable canonical serialization only after cross-stream ordering is evidenced and DEC-2026-009 is approved; do not treat source membership as a causal match or trade-driven decrement rule.
+
+---
+
 ## 2026-10-19 - Compose lifecycle anomaly dossiers
 
 - **Changed:** The composed Trim report now exposes every Order lifecycle anomaly in deterministic validated-member and source-coordinate order. Each dossier borrows the authoritative located anomaly and therefore retains the complete canonical event, raw 68-byte record, coordinate, and typed duplicate/unknown/regressing evidence without copying.

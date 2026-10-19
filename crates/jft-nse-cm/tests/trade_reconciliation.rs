@@ -9,8 +9,8 @@ use jft_nse_cm::reconcile::{
     CmStreamSource, OrderEntryEvidence, OrderSourceReference, SourceCoordinate,
     TradeCandidateStreamSetError, TradeValueSummary, TradeValueSummaryError,
     collect_trim_trade_stream_candidates, profile_trim_trade_candidate_stream_set,
-    profile_trim_trade_stream_candidates, reconcile_trim_trade_references,
-    replay_trim_order_source, replay_trim_order_stream_set,
+    profile_trim_trade_candidate_stream_set_with_observer, profile_trim_trade_stream_candidates,
+    reconcile_trim_trade_references, replay_trim_order_source, replay_trim_order_stream_set,
 };
 
 const ENTRY_FIXTURE: &[u8] =
@@ -447,6 +447,111 @@ fn profiles_each_raw_trade_stream_independently_in_member_order() {
         assert!(stream.source.quarantines.is_empty());
         assert!(stream.source.framing_error.is_none());
     }
+}
+
+#[test]
+fn observes_every_successful_trade_with_complete_candidates_in_member_order() {
+    let sell = sell_entry();
+    let order_sources = [
+        CmStreamSource {
+            member: Some(2),
+            source: &sell,
+        },
+        CmStreamSource {
+            member: Some(1),
+            source: ENTRY_FIXTURE,
+        },
+    ];
+    let orders = replay_trim_order_stream_set(&split_order_delivery(), &order_sources)
+        .expect("independent order replay");
+
+    let mut invalid_trade = TRADE_FIXTURE.to_vec();
+    invalid_trade[36] = b'X';
+    let mut member_one_trades = [TRADE_FIXTURE, invalid_trade.as_slice()].concat();
+    member_one_trades.extend_from_slice(b"partial-tail");
+    let trade_sources = [
+        CmStreamSource {
+            member: Some(2),
+            source: TRADE_FIXTURE,
+        },
+        CmStreamSource {
+            member: Some(1),
+            source: &member_one_trades,
+        },
+    ];
+    let delivery = split_trade_delivery(SourceDate::new(2026, 5, 18).expect("valid date"));
+
+    let mut observed = Vec::new();
+    let profile = profile_trim_trade_candidate_stream_set_with_observer(
+        &orders,
+        &delivery,
+        &trade_sources,
+        |evidence| observed.push(evidence),
+    )
+    .expect("trade candidate profile");
+
+    assert!(profile.counts_reconcile());
+    assert_eq!(profile.streams[0].source.parsed_records, 1);
+    assert_eq!(profile.streams[0].source.quarantines.len(), 1);
+    assert!(profile.streams[0].source.framing_error.is_some());
+    assert_eq!(profile.streams[1].source.parsed_records, 1);
+    assert_eq!(observed.len(), 2);
+    assert_eq!(
+        observed
+            .iter()
+            .map(|evidence| evidence.member)
+            .collect::<Vec<_>>(),
+        vec![Some(1), Some(2)]
+    );
+
+    let expected_event = trade();
+    let expected_candidates = collect_trim_trade_stream_candidates(&orders, &expected_event);
+    let expected_raw: [u8; TRIM_TRADE_RECORD_LEN] = TRADE_FIXTURE[..TRIM_TRADE_RECORD_LEN]
+        .try_into()
+        .expect("fixed-width trade record");
+    for evidence in &observed {
+        assert_eq!(
+            evidence.coordinate,
+            SourceCoordinate {
+                record_index: 0,
+                byte_offset: 0,
+            }
+        );
+        assert_eq!(evidence.event, expected_event);
+        assert_eq!(evidence.raw, expected_raw);
+        assert_eq!(evidence.candidates, expected_candidates);
+        assert_eq!(
+            evidence
+                .candidates
+                .buy
+                .candidates
+                .iter()
+                .map(|candidate| candidate.member)
+                .collect::<Vec<_>>(),
+            vec![Some(1)]
+        );
+        assert_eq!(
+            evidence
+                .candidates
+                .sell
+                .candidates
+                .iter()
+                .map(|candidate| candidate.member)
+                .collect::<Vec<_>>(),
+            vec![Some(2)]
+        );
+    }
+
+    let reversed_sources = [trade_sources[1], trade_sources[0]];
+    let mut reversed_observed = Vec::new();
+    profile_trim_trade_candidate_stream_set_with_observer(
+        &orders,
+        &delivery,
+        &reversed_sources,
+        |evidence| reversed_observed.push(evidence),
+    )
+    .expect("reversed trade candidate profile");
+    assert_eq!(reversed_observed, observed);
 }
 
 #[test]

@@ -242,6 +242,15 @@ pub struct TradeOrderStreamCandidates {
     pub sell: StreamOrderSourceCandidates,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LocatedTradeCandidateEvidence {
+    pub member: Option<u8>,
+    pub coordinate: SourceCoordinate,
+    pub event: TradeEvent,
+    pub raw: [u8; TRIM_TRADE_RECORD_LEN],
+    pub candidates: TradeOrderStreamCandidates,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct TradeOrderCandidateProfile {
     pub trade_count: usize,
@@ -1842,6 +1851,20 @@ pub fn profile_trim_trade_candidate_stream_set<'a>(
     trade_delivery: &CmPairedStreamSet,
     trade_sources: &[CmStreamSource<'a>],
 ) -> Result<TradeCandidateStreamSetProfile<'a>, TradeCandidateStreamSetError> {
+    profile_trim_trade_candidate_stream_set_with_observer(
+        orders,
+        trade_delivery,
+        trade_sources,
+        |_| {},
+    )
+}
+
+pub fn profile_trim_trade_candidate_stream_set_with_observer<'a>(
+    orders: &TrimOrderStreamSetReplay<'_>,
+    trade_delivery: &CmPairedStreamSet,
+    trade_sources: &[CmStreamSource<'a>],
+    mut observe: impl FnMut(LocatedTradeCandidateEvidence),
+) -> Result<TradeCandidateStreamSetProfile<'a>, TradeCandidateStreamSetError> {
     let ordered_sources =
         ordered_trim_stream_sources(trade_delivery, trade_sources, CmRecordKind::Trades)
             .map_err(TradeCandidateStreamSetError::TradeSourceSet)?;
@@ -1859,13 +1882,15 @@ pub fn profile_trim_trade_candidate_stream_set<'a>(
 
     let mut streams = Vec::with_capacity(ordered_sources.len());
     for stream in ordered_sources {
-        let source = profile_trim_trade_candidate_source(orders, stream.source).map_err(
-            |(coordinate, error)| TradeCandidateStreamSetError::SourceValueSummary {
-                member: stream.member,
-                coordinate,
-                error,
-            },
-        )?;
+        let source =
+            profile_trim_trade_candidate_source(orders, stream.member, stream.source, &mut observe)
+                .map_err(|(coordinate, error)| {
+                    TradeCandidateStreamSetError::SourceValueSummary {
+                        member: stream.member,
+                        coordinate,
+                        error,
+                    }
+                })?;
         streams.push(TradeCandidateStreamProfile {
             member: stream.member,
             source,
@@ -1916,7 +1941,9 @@ pub fn profile_trim_order_trade_evidence<'a>(
 
 fn profile_trim_trade_candidate_source<'a>(
     orders: &TrimOrderStreamSetReplay<'_>,
+    member: Option<u8>,
     source: &'a [u8],
+    observe: &mut impl FnMut(LocatedTradeCandidateEvidence),
 ) -> Result<TradeCandidateSourceProfile<'a>, (SourceCoordinate, TradeValueSummaryError)> {
     let mut profile = TradeCandidateSourceProfile {
         candidates: TradeOrderCandidateProfile::default(),
@@ -1981,6 +2008,13 @@ fn profile_trim_trade_candidate_source<'a>(
             &candidates.sell,
             parsed.event.exchange_jiffy,
         );
+        observe(LocatedTradeCandidateEvidence {
+            member,
+            coordinate,
+            event: parsed.event,
+            raw: parsed.raw,
+            candidates,
+        });
     }
 
     Ok(profile)
