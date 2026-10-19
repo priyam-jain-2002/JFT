@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-20 - Exhaustively verify cross-stream Trade candidates
+
+- **Changed:** Added a dependency-free combinatorial test over all 216 combinations of six synthetic candidate-source states across three independent Order streams. Each configuration profiles one Trade against missing, correctly sided, side-mismatched, before/equal/after-jiffy, and dual-reference entry evidence.
+- **Why:** Individual examples can miss interactions between candidate multiplicity, side diagnostics, time relations, and deterministic member ordering. The candidate layer must preserve all evidence and reconcile its aggregates before representative data can be interpreted.
+- **Validation:** Exact buy/sell candidate member, side, raw jiffy, record index/offset, zero/single/multiple counts, expected/mismatched-side counts, before/equal/after counts, and maximum multiplicity match an independently computed reference in all 216 configurations. Every diagnostic dimension is reached, input sources are deliberately out of member order, and every profile reconciles. The complete 169-test Rust gate, formatting, compilation, strict Clippy, and diff checks pass.
+- **Related:** Phase 1 independent-stream Trade-reference, ambiguity, and raw-jiffy evidence gates.
+- **Follow-up:** These remain source-membership and numeric-relation candidates. Representative ordering evidence is required before ranking a candidate, calling it causal, or applying any Trade-driven quantity change.
+
+---
+
 ## 2026-10-20 - Exhaustively verify raw Order replay integration
 
 - **Changed:** Added an end-to-end synthetic integration test that encodes every Entry/Modify/Cancel history through seven records into exact Trim wire bytes, then runs framing, parsing, replay, anomaly retention, and the successful-transition observer. Each result is compared with direct application of the same canonical events to the lifecycle reducer.

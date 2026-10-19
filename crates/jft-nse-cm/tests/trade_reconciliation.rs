@@ -7,10 +7,11 @@ use jft_nse_cm::manifest::{
 use jft_nse_cm::parser::parse_trim_trade;
 use jft_nse_cm::reconcile::{
     CmStreamSource, OrderEntryEvidence, OrderSourceReference, SourceCoordinate,
-    TradeCandidateStreamSetError, TradeValueSummary, TradeValueSummaryError,
-    collect_trim_trade_stream_candidates, profile_trim_trade_candidate_stream_set,
-    profile_trim_trade_candidate_stream_set_with_observer, profile_trim_trade_stream_candidates,
-    reconcile_trim_trade_references, replay_trim_order_source, replay_trim_order_stream_set,
+    TradeCandidateStreamSetError, TradeOrderCandidateProfile, TradeValueSummary,
+    TradeValueSummaryError, collect_trim_trade_stream_candidates,
+    profile_trim_trade_candidate_stream_set, profile_trim_trade_candidate_stream_set_with_observer,
+    profile_trim_trade_stream_candidates, reconcile_trim_trade_references,
+    replay_trim_order_source, replay_trim_order_stream_set,
 };
 
 const ENTRY_FIXTURE: &[u8] =
@@ -19,6 +20,89 @@ const CANCEL_FIXTURE: &[u8] =
     include_bytes!("../../../tests/fixtures/nse_cm/synthetic_nonlicensed/trim_order_cancel.dat");
 const TRADE_FIXTURE: &[u8] =
     include_bytes!("../../../tests/fixtures/nse_cm/synthetic_nonlicensed/trim_trade.dat");
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct CandidateSpec {
+    order_number: u64,
+    side: Side,
+    jiffy: u64,
+    record_index: usize,
+}
+
+fn order_entry_record(order_number: u64, side: Side, jiffy: u64) -> Vec<u8> {
+    let mut record = ENTRY_FIXTURE.to_vec();
+    record[6..22].copy_from_slice(format!("{order_number:016}").as_bytes());
+    record[22..36].copy_from_slice(format!("{jiffy:014}").as_bytes());
+    record[36] = match side {
+        Side::Buy => b'B',
+        Side::Sell => b'S',
+    };
+    record
+}
+
+fn candidate_source(state: u32) -> (Vec<u8>, Vec<CandidateSpec>) {
+    match state {
+        0 => (Vec::new(), Vec::new()),
+        1 => (
+            order_entry_record(1, Side::Buy, 91_200_611_817_221),
+            vec![CandidateSpec {
+                order_number: 1,
+                side: Side::Buy,
+                jiffy: 91_200_611_817_221,
+                record_index: 0,
+            }],
+        ),
+        2 => (
+            order_entry_record(1, Side::Sell, 91_200_611_817_222),
+            vec![CandidateSpec {
+                order_number: 1,
+                side: Side::Sell,
+                jiffy: 91_200_611_817_222,
+                record_index: 0,
+            }],
+        ),
+        3 => (
+            order_entry_record(2, Side::Sell, 91_200_611_817_223),
+            vec![CandidateSpec {
+                order_number: 2,
+                side: Side::Sell,
+                jiffy: 91_200_611_817_223,
+                record_index: 0,
+            }],
+        ),
+        4 => (
+            order_entry_record(2, Side::Buy, 91_200_611_817_221),
+            vec![CandidateSpec {
+                order_number: 2,
+                side: Side::Buy,
+                jiffy: 91_200_611_817_221,
+                record_index: 0,
+            }],
+        ),
+        5 => (
+            [
+                order_entry_record(1, Side::Buy, 91_200_611_817_222),
+                order_entry_record(2, Side::Sell, 91_200_611_817_222),
+            ]
+            .concat(),
+            vec![
+                CandidateSpec {
+                    order_number: 1,
+                    side: Side::Buy,
+                    jiffy: 91_200_611_817_222,
+                    record_index: 0,
+                },
+                CandidateSpec {
+                    order_number: 2,
+                    side: Side::Sell,
+                    jiffy: 91_200_611_817_222,
+                    record_index: 1,
+                },
+            ],
+        ),
+        _ => unreachable!("six candidate-source states"),
+    }
+}
 
 fn sell_entry() -> Vec<u8> {
     let mut sell = ENTRY_FIXTURE.to_vec();
@@ -366,6 +450,161 @@ fn profiles_entry_jiffy_relation_without_resolving_equal_jiffies() {
     assert_eq!(profile.entry_equal_trade_candidates, 1);
     assert_eq!(profile.entry_after_trade_candidates, 1);
     assert!(profile.counts_reconcile());
+}
+
+#[test]
+fn every_three_stream_candidate_configuration_matches_reference_counts() {
+    const SOURCE_STATES: u32 = 6;
+    const STREAM_COUNT: u32 = 3;
+    let event = trade();
+    let mut observed_dimensions = [false; 8];
+
+    for encoded_configuration in 0..SOURCE_STATES.pow(STREAM_COUNT) {
+        let mut encoded = encoded_configuration;
+        let mut state = [0_u32; STREAM_COUNT as usize];
+        for stream_state in &mut state {
+            *stream_state = encoded % SOURCE_STATES;
+            encoded /= SOURCE_STATES;
+        }
+        let generated = state.map(candidate_source);
+        let sources = [
+            CmStreamSource {
+                member: Some(3),
+                source: &generated[2].0,
+            },
+            CmStreamSource {
+                member: Some(1),
+                source: &generated[0].0,
+            },
+            CmStreamSource {
+                member: Some(2),
+                source: &generated[1].0,
+            },
+        ];
+        let mut delivery = split_order_delivery();
+        delivery.members = vec![Some(1), Some(2), Some(3)];
+        let orders = replay_trim_order_stream_set(&delivery, &sources)
+            .expect("three-stream candidate replay");
+        let candidates = collect_trim_trade_stream_candidates(&orders, &event);
+        let profile = profile_trim_trade_stream_candidates(&orders, [&event]);
+
+        let mut expected_buy = Vec::new();
+        let mut expected_sell = Vec::new();
+        for (member_index, (_, specs)) in generated.iter().enumerate() {
+            let member = u8::try_from(member_index + 1).expect("three members");
+            for spec in specs {
+                let expected = (
+                    Some(member),
+                    spec.side,
+                    ExchangeJiffy::new(spec.jiffy),
+                    SourceCoordinate {
+                        record_index: spec.record_index,
+                        byte_offset: spec.record_index * (TRIM_ORDER_RECORD_LEN + 1),
+                    },
+                );
+                match spec.order_number {
+                    1 => expected_buy.push(expected),
+                    2 => expected_sell.push(expected),
+                    _ => unreachable!("synthetic Trade references only Orders 1 and 2"),
+                }
+            }
+        }
+        let actual_buy = candidates
+            .buy
+            .candidates
+            .iter()
+            .map(|candidate| {
+                (
+                    candidate.member,
+                    candidate.entry.side,
+                    candidate.entry.exchange_jiffy,
+                    candidate.entry.coordinate,
+                )
+            })
+            .collect::<Vec<_>>();
+        let actual_sell = candidates
+            .sell
+            .candidates
+            .iter()
+            .map(|candidate| {
+                (
+                    candidate.member,
+                    candidate.entry.side,
+                    candidate.entry.exchange_jiffy,
+                    candidate.entry.coordinate,
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            actual_buy, expected_buy,
+            "configuration {encoded_configuration}"
+        );
+        assert_eq!(
+            actual_sell, expected_sell,
+            "configuration {encoded_configuration}"
+        );
+
+        let reference_lengths = [expected_buy.len(), expected_sell.len()];
+        let all_candidates = expected_buy.iter().chain(&expected_sell);
+        let expected_side_candidates = expected_buy
+            .iter()
+            .filter(|(_, side, _, _)| *side == Side::Buy)
+            .count()
+            + expected_sell
+                .iter()
+                .filter(|(_, side, _, _)| *side == Side::Sell)
+                .count();
+        let candidate_count = reference_lengths.iter().sum::<usize>();
+        let before = all_candidates
+            .clone()
+            .filter(|(_, _, jiffy, _)| *jiffy < event.exchange_jiffy)
+            .count();
+        let equal = all_candidates
+            .clone()
+            .filter(|(_, _, jiffy, _)| *jiffy == event.exchange_jiffy)
+            .count();
+        let after = all_candidates
+            .filter(|(_, _, jiffy, _)| *jiffy > event.exchange_jiffy)
+            .count();
+        let expected_profile = TradeOrderCandidateProfile {
+            trade_count: 1,
+            reference_count: 2,
+            candidate_count,
+            zero_candidate_references: reference_lengths
+                .iter()
+                .filter(|count| **count == 0)
+                .count(),
+            single_candidate_references: reference_lengths
+                .iter()
+                .filter(|count| **count == 1)
+                .count(),
+            multiple_candidate_references: reference_lengths
+                .iter()
+                .filter(|count| **count > 1)
+                .count(),
+            expected_side_candidates,
+            side_mismatch_candidates: candidate_count - expected_side_candidates,
+            entry_before_trade_candidates: before,
+            entry_equal_trade_candidates: equal,
+            entry_after_trade_candidates: after,
+            maximum_candidates_per_reference: reference_lengths.into_iter().max().unwrap_or(0),
+        };
+        assert_eq!(
+            profile, expected_profile,
+            "configuration {encoded_configuration}"
+        );
+        assert!(profile.counts_reconcile());
+        observed_dimensions[0] |= profile.zero_candidate_references > 0;
+        observed_dimensions[1] |= profile.single_candidate_references > 0;
+        observed_dimensions[2] |= profile.multiple_candidate_references > 0;
+        observed_dimensions[3] |= profile.expected_side_candidates > 0;
+        observed_dimensions[4] |= profile.side_mismatch_candidates > 0;
+        observed_dimensions[5] |= profile.entry_before_trade_candidates > 0;
+        observed_dimensions[6] |= profile.entry_equal_trade_candidates > 0;
+        observed_dimensions[7] |= profile.entry_after_trade_candidates > 0;
+    }
+
+    assert!(observed_dimensions.into_iter().all(|observed| observed));
 }
 
 #[test]
