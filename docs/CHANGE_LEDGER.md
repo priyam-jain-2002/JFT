@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-20 - Separate proven wire layouts from pending canonical schemas
+
+- **Changed:** The Phase 1 checklist now distinguishes implemented, source-date-dispatched Rust wire-layout descriptors from the still-unapproved language-neutral canonical schema. It also separates already-proven quarantine byte/member/coordinate/jiffy/reason preservation from the pending durable file/payload identity. The schema-directory README records the same boundary.
+- **Why:** Two mixed checklist items incorrectly made completed Rust evidence look unfinished while obscuring that canonical identity and compatibility remain owner decisions. Keeping those layers explicit prevents an ad hoc schema or file key from being mistaken for an approved cross-language contract.
+- **Validation:** Existing executable evidence covers every documented Full layout boundary and Trim introduction date, exact Full fixture field boundaries, all 38,400 single-byte Trim mutations with lossless rejection, member-aware quarantine replay, and composed quarantine provenance. The complete 165-test Rust gate, formatting, compilation, strict Clippy, and diff checks pass unchanged.
+- **Related:** Phase 1 wire-schema, quarantine-provenance, and DEC-2026-009 gates.
+- **Follow-up:** Activate or amend DEC-2026-009 before adding canonical schema files, durable payload identity, manifest serialization, or new hashing/JSON dependencies.
+
+---
+
 ## 2026-10-20 - Observe successful transitions across independent Order streams
 
 - **Changed:** Validated Trim Order stream-set replay now offers a member-aware observer for every successful lifecycle transition. Observations preserve member, source coordinate, canonical event, exact raw 68-byte record, and entered/modified/cancelled delta in deterministic validated-member then per-source order; the original stream-set API delegates with a no-op callback.
