@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-20 - Model-check the lifecycle reducer
+
+- **Changed:** Added a dependency-free exhaustive activity-history test for the established single-key Order lifecycle contract. It enumerates every Entry/Modify/Cancel history from zero through seven events and compares every result plus resulting state with an independent active/inactive reference machine.
+- **Why:** Hand-picked happy and failure paths can miss state leakage after repeated duplicates, unknown operations, cancellations, and re-entries. This test exercises all short control-flow combinations without introducing cross-stream ordering or Trade-driven quantity assumptions.
+- **Validation:** All 3,280 histories and 21,324 event applications pass. Exact entered/modified/cancelled transitions and duplicate/unknown anomalies match the reference; rejected events preserve exact reducer state, modifies retain entry jiffy while replacing published fields, and cancels remove state. The complete 166-test Rust gate, formatting, compilation, strict Clippy, and diff checks pass.
+- **Related:** Phase 1 lifecycle-reducer and deterministic-replay gates.
+- **Follow-up:** Representative data is still required to validate session carry/reset, cross-stream order, regressing-jiffy incidence, and Trade-driven quantity semantics; this model proves only the documented conservative reducer contract.
+
+---
+
 ## 2026-10-20 - Separate proven wire layouts from pending canonical schemas
 
 - **Changed:** The Phase 1 checklist now distinguishes implemented, source-date-dispatched Rust wire-layout descriptors from the still-unapproved language-neutral canonical schema. It also separates already-proven quarantine byte/member/coordinate/jiffy/reason preservation from the pending durable file/payload identity. The schema-directory README records the same boundary.

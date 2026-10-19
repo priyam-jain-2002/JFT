@@ -263,3 +263,97 @@ fn cross_session_modify_and_cancel_fail_closed_without_mutating_active_state() {
     );
     assert_eq!(lifecycle, before);
 }
+
+#[test]
+fn every_activity_history_through_seven_events_matches_the_reference_state_machine() {
+    let template = parse_fixture(ENTRY_FIXTURE);
+    let key = OrderKey::from(&template);
+    let first_jiffy = template.exchange_jiffy.raw();
+
+    for history_len in 0_u32..=7 {
+        let history_count = 3_u32.pow(history_len);
+        for encoded_history in 0..history_count {
+            let mut encoded = encoded_history;
+            let mut lifecycle = OrderLifecycle::new();
+            let mut expected_active = None;
+
+            for event_index in 0..history_len {
+                let activity = match encoded % 3 {
+                    0 => OrderActivity::Entry,
+                    1 => OrderActivity::Modify,
+                    2 => OrderActivity::Cancel,
+                    _ => unreachable!("base-three digit"),
+                };
+                encoded /= 3;
+
+                let mut event = with_activity_and_jiffy(
+                    template.clone(),
+                    activity,
+                    first_jiffy + u64::from(event_index),
+                );
+                event.quantity = 100 + u64::from(event_index);
+                event.price_paise = 250_000 + u64::from(event_index);
+                let before = lifecycle.clone();
+
+                let expected = match (activity, expected_active) {
+                    (OrderActivity::Entry, None) => {
+                        let current = ActiveOrder {
+                            side: event.side,
+                            quantity: event.quantity,
+                            price_paise: event.price_paise,
+                            entry_jiffy: event.exchange_jiffy,
+                            last_event_jiffy: event.exchange_jiffy,
+                        };
+                        expected_active = Some(current);
+                        Ok(LifecycleTransition::Entered { current })
+                    }
+                    (OrderActivity::Entry, Some(active)) => Err(LifecycleAnomaly::DuplicateEntry {
+                        key,
+                        active,
+                        incoming_jiffy: event.exchange_jiffy,
+                    }),
+                    (OrderActivity::Modify, None) => Err(LifecycleAnomaly::UnknownModify {
+                        key,
+                        incoming_jiffy: event.exchange_jiffy,
+                    }),
+                    (OrderActivity::Modify, Some(previous)) => {
+                        let current = ActiveOrder {
+                            side: event.side,
+                            quantity: event.quantity,
+                            price_paise: event.price_paise,
+                            entry_jiffy: previous.entry_jiffy,
+                            last_event_jiffy: event.exchange_jiffy,
+                        };
+                        expected_active = Some(current);
+                        Ok(LifecycleTransition::Modified { previous, current })
+                    }
+                    (OrderActivity::Cancel, None) => Err(LifecycleAnomaly::UnknownCancel {
+                        key,
+                        incoming_jiffy: event.exchange_jiffy,
+                    }),
+                    (OrderActivity::Cancel, Some(previous)) => {
+                        expected_active = None;
+                        Ok(LifecycleTransition::Cancelled {
+                            previous,
+                            cancel_jiffy: event.exchange_jiffy,
+                        })
+                    }
+                };
+
+                let actual = lifecycle.apply(&event);
+                assert_eq!(
+                    actual, expected,
+                    "history length {history_len}, encoded history {encoded_history}, event {event_index}"
+                );
+                if actual.is_err() {
+                    assert_eq!(
+                        lifecycle, before,
+                        "rejected event mutated state for history length {history_len}, encoded history {encoded_history}, event {event_index}"
+                    );
+                }
+                assert_eq!(lifecycle.get(&key).copied(), expected_active);
+                assert_eq!(lifecycle.len(), usize::from(expected_active.is_some()));
+            }
+        }
+    }
+}
