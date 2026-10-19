@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-20 - Correct the governing Phase 1 next gate
+
+- **Changed:** Replaced the stale checklist header that still named deterministic fixture replay as the next gate. The header now records fixture-first parser/replay evidence as verified and identifies representative paired current Trim qualification plus owner review of proposed DEC-2026-009 as the gates before durable canonical output.
+- **Why:** Fixture replay, byte accounting, lifecycle reduction, book projection, Trade candidate evidence, and their exhaustive synthetic checks are already implemented. Leaving replay marked as next contradicted the detailed checklist, immediate actions, README, and decision log.
+- **Validation:** Cross-file searches confirm the obsolete next-gate phrase is gone and the header now agrees with the remaining unchecked Phase 0/1 work, immediate-action ordering, README, and DEC-2026-009's Proposed status. Markdown diff checks pass; no application code changed.
+- **Related:** Phase 0 representative-data qualification; Phase 1 acceptance; proposed DEC-2026-009.
+- **Follow-up:** Do not treat the corrected status as Phase 1 acceptance. Representative current data and an explicit owner decision remain required.
+
+---
+
 ## 2026-10-20 - Verify independent Order and Trade source permutations
 
 - **Changed:** Expanded composed Trim evidence and Trade-observer determinism tests from one coupled reversal to all four independent forward/reversed combinations of the two-member Order and Trade caller-source arrays.

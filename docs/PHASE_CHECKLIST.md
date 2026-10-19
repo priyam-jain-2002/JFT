@@ -4,12 +4,12 @@
 
 This is the single execution source of truth for JFT. It combines the product brief, technical architecture, data contract, research plan, acceptance gates, kill criteria, and phase checklist for an NSE-focused short-horizon quantitative trading system. It replaces the generic lifecycle checklist; it does not authorize trading or establish that the strategy is profitable or legally permitted.
 
-- **Document status:** Governing plan; Phase 1 current-Trim parser slice verified, replay semantics not yet frozen
+- **Document status:** Governing plan; fixture-first current-Trim parser/replay evidence verified, representative-data acceptance and canonical identity still open
 - **Current phase:** Phase 1 - deterministic parser and book reconstruction
-- **Last updated:** 2026-10-15
+- **Last updated:** 2026-10-20
 - **Decision owner:** Project owner
 - **Initial market/mode:** NSE Cash Market (CM), offline research only
-- **Next gate:** Deterministic fixture replay with byte-accounting and invariant evidence
+- **Next gate:** Qualify representative paired current Trim data and obtain owner review of proposed DEC-2026-009 before durable canonical output
 - **External dependency (not repository scope):** Legal/compliance review still needs to be completed before operational live, capital, or external-product activation; it does not block offline repository engineering
 - **Related:** [full decisions](decisions/DECISION_LOG.md), [compact decisions](decisions/COMPACT_DECISION_LOG.md), [research index](research/README.md), [change ledger](CHANGE_LEDGER.md)
 
