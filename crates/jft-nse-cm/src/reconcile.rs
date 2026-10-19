@@ -857,6 +857,12 @@ pub struct TrimFramingLossEvidence<'a> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TrimLifecycleAnomalyEvidence<'a> {
+    pub member: Option<u8>,
+    pub located: &'a LocatedLifecycleAnomaly,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TrimSourceByteAccounting {
     pub record_kind: CmRecordKind,
     pub member: Option<u8>,
@@ -1140,6 +1146,24 @@ impl TrimOrderTradeEvidence<'_> {
                     record_kind: CmRecordKind::Trades,
                     member: stream.member,
                     error,
+                });
+            }
+        }
+
+        evidence
+    }
+
+    /// Borrows every lifecycle anomaly in deterministic member and source
+    /// coordinate order, preserving the complete event, raw bytes, and type.
+    #[must_use]
+    pub fn lifecycle_anomaly_evidence(&self) -> Vec<TrimLifecycleAnomalyEvidence<'_>> {
+        let mut evidence = Vec::new();
+
+        for stream in &self.orders.streams {
+            for located in &stream.replay.lifecycle_anomalies {
+                evidence.push(TrimLifecycleAnomalyEvidence {
+                    member: stream.member,
+                    located,
                 });
             }
         }

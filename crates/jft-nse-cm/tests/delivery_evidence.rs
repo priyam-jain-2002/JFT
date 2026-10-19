@@ -489,6 +489,30 @@ fn reports_nonzero_observations_in_deterministic_stream_and_kind_order() {
             accounted_source_bytes: TRIM_ORDER_RECORD_LEN + 1,
         })
     );
+
+    let lifecycle_anomalies = evidence.lifecycle_anomaly_evidence();
+    assert_eq!(lifecycle_anomalies, reversed.lifecycle_anomaly_evidence());
+    assert_eq!(lifecycle_anomalies.len(), 1);
+    assert_eq!(lifecycle_anomalies[0].member, Some(1));
+    assert!(std::ptr::eq(
+        lifecycle_anomalies[0].located,
+        &evidence.orders.streams[0].replay.lifecycle_anomalies[0]
+    ));
+    assert_eq!(
+        lifecycle_anomalies[0].located.coordinate,
+        SourceCoordinate {
+            record_index: 1,
+            byte_offset: TRIM_ORDER_RECORD_LEN + 1,
+        }
+    );
+    assert_eq!(
+        lifecycle_anomalies[0].located.raw,
+        ENTRY_FIXTURE[..TRIM_ORDER_RECORD_LEN]
+    );
+    assert!(matches!(
+        lifecycle_anomalies[0].located.anomaly,
+        jft_nse_cm::lifecycle::LifecycleAnomaly::DuplicateEntry { .. }
+    ));
 }
 
 #[test]

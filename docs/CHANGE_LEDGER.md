@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-19 - Compose lifecycle anomaly dossiers
+
+- **Changed:** The composed Trim report now exposes every Order lifecycle anomaly in deterministic validated-member and source-coordinate order. Each dossier borrows the authoritative located anomaly and therefore retains the complete canonical event, raw 68-byte record, coordinate, and typed duplicate/unknown/regressing evidence without copying.
+- **Why:** Aggregate lifecycle counts cannot support representative root-cause review or example selection, while downstream Python must not reparse raw Order bytes.
+- **Validation:** The composed integration test proves exact duplicate-entry member, record index/offset, raw bytes, typed anomaly, pointer identity, and caller-source-order invariance. All 162 default Rust tests pass.
+- **Related:** Phase 1 lifecycle anomaly-rate/example-dossier and Rust/Python boundary gates.
+- **Follow-up:** Use representative runs to retain contextual examples for every nonzero lifecycle class before setting severity thresholds or requesting vendor clarification.
+
+---
+
 ## 2026-10-19 - Verify byte accounting against actual input length
 
 - **Changed:** Order replay, raw Trade profiling, and standalone Order/Trade jiffy profiling now record the caller's actual source-slice length at ingestion. Their reconciliation invariants independently compare that value with fixed-width framed bytes plus preserved residue. Composed byte accounting now returns a distinct typed mismatch error instead of deriving `source_bytes` from the values being checked; combined Order summaries merge actual source and residue bytes with checked arithmetic.
