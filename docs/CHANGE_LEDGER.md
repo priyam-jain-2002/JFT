@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-20 - Exhaustively verify raw Order replay integration
+
+- **Changed:** Added an end-to-end synthetic integration test that encodes every Entry/Modify/Cancel history through seven records into exact Trim wire bytes, then runs framing, parsing, replay, anomaly retention, and the successful-transition observer. Each result is compared with direct application of the same canonical events to the lifecycle reducer.
+- **Why:** The reducer can be correct while replay wiring loses a record, misattributes a coordinate/raw record, filters an anomaly, or emits a different observer transition. Exhaustive short histories test the integration boundary rather than repeating only reducer-unit assertions.
+- **Validation:** All 3,280 histories and 21,324 raw records pass. Final lifecycle state, framed/parsed/applied/anomaly counts, exact events, complete 68-byte records, record indices/byte offsets, typed transitions/anomalies, source-byte accounting, and observer cardinality reconcile with zero quarantine or residue. The complete 168-test Rust gate, formatting, compilation, strict Clippy, and diff checks pass.
+- **Related:** Phase 1 raw parser, replay, lifecycle-provenance, and count-invariant gates.
+- **Follow-up:** This proves deterministic caller-ordered single-stream integration only; representative data is still required before selecting cross-stream/equal-jiffy order, session carry/reset, or Trade-driven quantity behavior.
+
+---
+
 ## 2026-10-20 - Exhaustively verify small book projections
 
 - **Changed:** Added a dependency-free exhaustive projection test over all 625 configurations of four Orders, where each Order is inactive or occupies one of two bid/two ask levels. Every configuration is built in forward and reverse insertion order and compared with an independent price-level reference.

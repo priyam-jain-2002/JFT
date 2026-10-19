@@ -1,11 +1,12 @@
-use jft_nse_cm::events::OrderActivity;
+use jft_nse_cm::events::{OrderActivity, OrderEvent};
 use jft_nse_cm::framing::FramingErrorReason;
 use jft_nse_cm::jiffy::ExchangeJiffy;
-use jft_nse_cm::layouts::{SourceDate, TRIM_ORDER_RECORD_LEN};
-use jft_nse_cm::lifecycle::LifecycleAnomaly;
+use jft_nse_cm::layouts::{FieldLayout, SourceDate, TRIM_ORDER_FIELDS, TRIM_ORDER_RECORD_LEN};
+use jft_nse_cm::lifecycle::{LifecycleAnomaly, OrderLifecycle};
 use jft_nse_cm::manifest::{
     CmFilePrefix, CmLogicalGroupKey, CmPairedStreamSet, CmProduct, CmRecordKind,
 };
+use jft_nse_cm::parser::parse_trim_order;
 use jft_nse_cm::reconcile::{
     CmStreamSource, CmStreamSourceSetError, OrderReplaySummary, OrderReplaySummaryError,
     SessionObservationCountError, SessionObservationCounts, SourceCoordinate, TrimOrderReplay,
@@ -37,6 +38,27 @@ fn split_order_delivery() -> CmPairedStreamSet {
         },
         members: vec![Some(1), Some(2)],
     }
+}
+
+fn overwrite_decimal_field(raw: &mut [u8; TRIM_ORDER_RECORD_LEN], field: FieldLayout, value: u64) {
+    let encoded = format!("{value:0width$}", width = field.width);
+    assert_eq!(encoded.len(), field.width);
+    raw[field.offset..field.end()].copy_from_slice(encoded.as_bytes());
+}
+
+fn encode_order_event(event: &OrderEvent) -> [u8; TRIM_ORDER_RECORD_LEN] {
+    let mut raw = ENTRY_FIXTURE[..TRIM_ORDER_RECORD_LEN]
+        .try_into()
+        .expect("fixed-width Order fixture");
+    overwrite_decimal_field(&mut raw, TRIM_ORDER_FIELDS[3], event.exchange_jiffy.raw());
+    raw[TRIM_ORDER_FIELDS[5].offset] = match event.activity {
+        OrderActivity::Entry => b'1',
+        OrderActivity::Cancel => b'3',
+        OrderActivity::Modify => b'4',
+    };
+    overwrite_decimal_field(&mut raw, TRIM_ORDER_FIELDS[8], event.quantity);
+    overwrite_decimal_field(&mut raw, TRIM_ORDER_FIELDS[9], event.price_paise);
+    raw
 }
 
 #[test]
@@ -291,6 +313,115 @@ fn observing_transitions_does_not_change_the_replay_report() {
     let observed = replay_trim_order_source_with_observer(&source, |_| {});
 
     assert_eq!(default, observed);
+}
+
+#[test]
+fn every_short_activity_history_replays_like_direct_lifecycle_application() {
+    let template = parse_trim_order(&ENTRY_FIXTURE[..TRIM_ORDER_RECORD_LEN])
+        .expect("synthetic entry fixture")
+        .event;
+    let first_jiffy = template.exchange_jiffy.raw();
+
+    for history_len in 0_u32..=7 {
+        for encoded_history in 0..3_u32.pow(history_len) {
+            let mut encoded = encoded_history;
+            let mut source = Vec::with_capacity(
+                usize::try_from(history_len).expect("small history") * (TRIM_ORDER_RECORD_LEN + 1),
+            );
+            let mut expected_lifecycle = OrderLifecycle::new();
+            let mut expected_successes = Vec::new();
+            let mut expected_anomalies = Vec::new();
+
+            for event_index in 0..history_len {
+                let activity = match encoded % 3 {
+                    0 => OrderActivity::Entry,
+                    1 => OrderActivity::Modify,
+                    2 => OrderActivity::Cancel,
+                    _ => unreachable!("base-three digit"),
+                };
+                encoded /= 3;
+
+                let mut event = template.clone();
+                event.activity = activity;
+                event.exchange_jiffy = ExchangeJiffy::new(first_jiffy + u64::from(event_index));
+                event.quantity = 100 + u64::from(event_index);
+                event.price_paise = 250_000 + u64::from(event_index);
+                let raw = encode_order_event(&event);
+                source.extend_from_slice(&raw);
+                source.push(b'\n');
+
+                match expected_lifecycle.apply(&event) {
+                    Ok(transition) => {
+                        expected_successes.push((event_index, event, raw, transition));
+                    }
+                    Err(anomaly) => {
+                        expected_anomalies.push((event_index, event, raw, anomaly));
+                    }
+                }
+            }
+
+            let mut observed = Vec::new();
+            let replay = replay_trim_order_source_with_observer(&source, |transition| {
+                observed.push(transition);
+            });
+            let history_context =
+                format!("history length {history_len}, encoded history {encoded_history}");
+
+            assert!(replay.counts_reconcile(), "{history_context}");
+            assert_eq!(replay.lifecycle, expected_lifecycle, "{history_context}");
+            assert_eq!(replay.source_bytes, source.len(), "{history_context}");
+            assert_eq!(
+                replay.framed_records, history_len as usize,
+                "{history_context}"
+            );
+            assert_eq!(
+                replay.parsed_records, history_len as usize,
+                "{history_context}"
+            );
+            assert_eq!(
+                replay.applied_events,
+                expected_successes.len(),
+                "{history_context}"
+            );
+            assert!(replay.quarantines.is_empty(), "{history_context}");
+            assert!(replay.framing_error.is_none(), "{history_context}");
+            assert_eq!(
+                observed.len(),
+                expected_successes.len(),
+                "{history_context}"
+            );
+            assert_eq!(
+                replay.lifecycle_anomalies.len(),
+                expected_anomalies.len(),
+                "{history_context}"
+            );
+
+            for (actual, (event_index, event, raw, transition)) in
+                observed.iter().zip(&expected_successes)
+            {
+                assert_eq!(actual.coordinate.record_index, *event_index as usize);
+                assert_eq!(
+                    actual.coordinate.byte_offset,
+                    *event_index as usize * (TRIM_ORDER_RECORD_LEN + 1)
+                );
+                assert_eq!(&actual.event, event);
+                assert_eq!(&actual.raw, raw);
+                assert_eq!(&actual.transition, transition);
+            }
+            for (actual, (event_index, event, raw, anomaly)) in
+                replay.lifecycle_anomalies.iter().zip(&expected_anomalies)
+            {
+                assert_eq!(actual.coordinate.record_index, *event_index as usize);
+                assert_eq!(
+                    actual.coordinate.byte_offset,
+                    *event_index as usize * (TRIM_ORDER_RECORD_LEN + 1)
+                );
+                assert_eq!(&actual.event, event);
+                assert_eq!(&actual.raw, raw);
+                assert_eq!(&actual.anomaly, anomaly);
+            }
+        }
+    }
 }
 
 #[test]
