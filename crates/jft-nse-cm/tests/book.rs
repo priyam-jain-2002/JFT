@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use jft_nse_cm::book::{
     BookKey, BookProjectionError, OrderBookProjection, PriceBook, PriceLevel, TopOfBook,
 };
@@ -27,6 +29,43 @@ fn key(event: &OrderEvent) -> BookKey {
         segment: event.segment,
         symbol_raw: event.symbol_raw,
         series_raw: event.series_raw,
+    }
+}
+
+fn reference_top(bids: &BTreeMap<u64, PriceLevel>, asks: &BTreeMap<u64, PriceLevel>) -> TopOfBook {
+    let best_bid = bids
+        .iter()
+        .next_back()
+        .map(|(price, level)| (*price, *level));
+    let best_ask = asks.iter().next().map(|(price, level)| (*price, *level));
+
+    match (best_bid, best_ask) {
+        (None, None) => TopOfBook::Empty,
+        (Some((price_paise, level)), None) => TopOfBook::BidOnly { price_paise, level },
+        (None, Some((price_paise, level))) => TopOfBook::AskOnly { price_paise, level },
+        (Some((bid_price_paise, bid)), Some((ask_price_paise, ask))) => {
+            match bid_price_paise.cmp(&ask_price_paise) {
+                std::cmp::Ordering::Less => TopOfBook::Normal {
+                    bid_price_paise,
+                    bid,
+                    ask_price_paise,
+                    ask,
+                    spread_paise: ask_price_paise - bid_price_paise,
+                },
+                std::cmp::Ordering::Equal => TopOfBook::Locked {
+                    price_paise: bid_price_paise,
+                    bid,
+                    ask,
+                },
+                std::cmp::Ordering::Greater => TopOfBook::Crossed {
+                    bid_price_paise,
+                    bid,
+                    ask_price_paise,
+                    ask,
+                    cross_paise: bid_price_paise - ask_price_paise,
+                },
+            }
+        }
     }
 }
 
@@ -85,6 +124,101 @@ fn aggregates_orders_at_the_same_price_and_preserves_price_order() {
             }
         ))
     );
+}
+
+#[test]
+fn every_small_four_order_book_matches_reference_levels_and_top() {
+    const ORDER_COUNT: u32 = 4;
+    const ORDER_STATES: u32 = 5;
+    let mut observed_top_classes = [false; 6];
+
+    for encoded_configuration in 0..ORDER_STATES.pow(ORDER_COUNT) {
+        let mut encoded = encoded_configuration;
+        let mut events = Vec::new();
+        let mut expected_bids = BTreeMap::<u64, PriceLevel>::new();
+        let mut expected_asks = BTreeMap::<u64, PriceLevel>::new();
+
+        for order_index in 0..ORDER_COUNT {
+            let state = encoded % ORDER_STATES;
+            encoded /= ORDER_STATES;
+            if state == 0 {
+                continue;
+            }
+
+            let mut event = base_order();
+            event.order_number = u64::from(order_index) + 1;
+            event.quantity = u64::from(order_index) + 1;
+            event.side = if state <= 2 { Side::Buy } else { Side::Sell };
+            event.price_paise = if state % 2 == 1 { 250_000 } else { 250_100 };
+
+            let levels = match event.side {
+                Side::Buy => &mut expected_bids,
+                Side::Sell => &mut expected_asks,
+            };
+            let level = levels.entry(event.price_paise).or_default();
+            level.order_count += 1;
+            level.total_quantity += event.quantity;
+            events.push(event);
+        }
+
+        let mut forward = OrderLifecycle::new();
+        for event in &events {
+            insert(&mut forward, event);
+        }
+        let mut reverse = OrderLifecycle::new();
+        for event in events.iter().rev() {
+            insert(&mut reverse, event);
+        }
+
+        let projection = OrderBookProjection::from_lifecycle(&forward).expect("small projection");
+        let reversed =
+            OrderBookProjection::from_lifecycle(&reverse).expect("reversed small projection");
+        assert_eq!(
+            projection, reversed,
+            "configuration {encoded_configuration}"
+        );
+
+        if events.is_empty() {
+            assert!(projection.is_empty());
+            observed_top_classes[0] = true;
+            continue;
+        }
+
+        assert_eq!(projection.len(), 1);
+        let book = projection.get(&key(&events[0])).expect("single test book");
+        assert_eq!(
+            book.bids().collect::<Vec<_>>(),
+            expected_bids
+                .iter()
+                .map(|(price, level)| (*price, *level))
+                .collect::<Vec<_>>(),
+            "bid levels for configuration {encoded_configuration}"
+        );
+        assert_eq!(
+            book.asks().collect::<Vec<_>>(),
+            expected_asks
+                .iter()
+                .map(|(price, level)| (*price, *level))
+                .collect::<Vec<_>>(),
+            "ask levels for configuration {encoded_configuration}"
+        );
+        let actual_top = book.top();
+        assert_eq!(
+            actual_top,
+            reference_top(&expected_bids, &expected_asks),
+            "top of book for configuration {encoded_configuration}"
+        );
+        observed_top_classes[match actual_top {
+            TopOfBook::Empty => 0,
+            TopOfBook::BidOnly { .. } => 1,
+            TopOfBook::AskOnly { .. } => 2,
+            TopOfBook::Normal { .. } => 3,
+            TopOfBook::Locked { .. } => 4,
+            TopOfBook::Crossed { .. } => 5,
+        }] = true;
+    }
+
+    assert!(observed_top_classes.into_iter().all(|observed| observed));
 }
 
 #[test]

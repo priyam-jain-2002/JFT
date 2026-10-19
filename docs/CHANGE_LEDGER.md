@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-20 - Exhaustively verify small book projections
+
+- **Changed:** Added a dependency-free exhaustive projection test over all 625 configurations of four Orders, where each Order is inactive or occupies one of two bid/two ask levels. Every configuration is built in forward and reverse insertion order and compared with an independent price-level reference.
+- **Why:** Example books alone can miss aggregation, side separation, ordering, or top-selection defects that appear only when several orders collide at levels. This verifies the lifecycle-to-book projection without selecting event chronology or repairing locked/crossed evidence.
+- **Validation:** All 625 configurations and 1,250 insertion-order projections pass. Exact bid/ask levels, order counts, quantities, best prices, spread/cross amounts, and projection equality match the reference; the generator explicitly reaches empty, bid-only, ask-only, normal, locked, and crossed top states. The complete 167-test Rust gate, formatting, compilation, strict Clippy, and diff checks pass.
+- **Related:** Phase 1 price-level projection, book-invariant, and determinism gates.
+- **Follow-up:** Representative current data is still required to validate cross-stream event order, auction interpretation, realistic locked/crossed incidence, and any Trade-driven quantity rule.
+
+---
+
 ## 2026-10-20 - Model-check the lifecycle reducer
 
 - **Changed:** Added a dependency-free exhaustive activity-history test for the established single-key Order lifecycle contract. It enumerates every Entry/Modify/Cancel history from zero through seven events and compares every result plus resulting state with an independent active/inactive reference machine.
