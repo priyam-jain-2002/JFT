@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-20 - Forward Trade evidence through composed profiling
+
+- **Changed:** The composed Trim Order/Trade report builder now has a Trade-observer variant and the original builder delegates to it with a no-op callback. Successful Trade observations use the same parse, candidate, and aggregate path as the returned report; Order member validation and Order/Trade delivery identity checks occur before any callback.
+- **Why:** A downstream Rust canonical writer or representative-data evidence sink should not have to duplicate the two-stage Order replay plus Trade profiling orchestration, and inputs rejected by Order-member or Order/Trade delivery-identity checks must not emit Trade observations.
+- **Validation:** A composed integration test proves callback count equals the authoritative parsed-Trade total, exact raw/event/coordinate and buy/sell candidates match the report inputs, the returned report equals the original API result, and reversing both caller source arrays changes neither report nor observations. Existing fail-closed tests now also prove zero callbacks for incomplete Order membership and cross-date Order/Trade delivery mismatch. All 164 default Rust tests pass.
+- **Related:** Phase 1 composed evidence, delivery-identity, and Rust/Python boundary gates.
+- **Follow-up:** A durable writer remains intentionally deferred until ordering evidence and DEC-2026-009 resolve canonical identity/versioning; the observer still makes no temporal, causal-match, or quantity-decrement claim.
+
+---
+
 ## 2026-10-19 - Stream successful Trade candidate evidence
 
 - **Changed:** Raw Trim Trade profiling now offers a streaming observer for every successfully parsed Trade in validated member order. Each observation carries the member, exact source coordinate, canonical event, complete raw 82-byte record, and full buy/sell Order-entry candidate sets; the existing aggregate API delegates to this path with a no-op observer and retains no whole-delivery Trade vector.

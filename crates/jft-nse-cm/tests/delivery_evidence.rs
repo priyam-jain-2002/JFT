@@ -12,7 +12,7 @@ use jft_nse_cm::reconcile::{
     SessionExcludedOrderIdentity, SessionOrderEntryOccurrence, SourceCoordinate,
     TradeCandidateStreamSetError, TrimEvidenceObservation, TrimEvidenceObservationKind,
     TrimOrderTradeEvidenceError, TrimSourceByteAccounting, TrimSourceByteAccountingError,
-    profile_trim_order_trade_evidence,
+    profile_trim_order_trade_evidence, profile_trim_order_trade_evidence_with_trade_observer,
 };
 
 const ENTRY_FIXTURE: &[u8] =
@@ -126,6 +126,111 @@ fn composes_deterministic_order_and_trade_evidence_without_merging_streams() {
 }
 
 #[test]
+fn composed_trade_observer_matches_the_authoritative_profile_without_reparsing() {
+    let date = source_date(18);
+    let order_delivery = delivery(CmRecordKind::Orders, date);
+    let trade_delivery = delivery(CmRecordKind::Trades, date);
+    let sell = sell_entry();
+    let order_sources = [
+        CmStreamSource {
+            member: Some(2),
+            source: &sell,
+        },
+        CmStreamSource {
+            member: Some(1),
+            source: ENTRY_FIXTURE,
+        },
+    ];
+    let trade_sources = [
+        CmStreamSource {
+            member: Some(2),
+            source: TRADE_FIXTURE,
+        },
+        CmStreamSource {
+            member: Some(1),
+            source: TRADE_FIXTURE,
+        },
+    ];
+
+    let mut observed = Vec::new();
+    let evidence = profile_trim_order_trade_evidence_with_trade_observer(
+        &order_delivery,
+        &order_sources,
+        &trade_delivery,
+        &trade_sources,
+        |trade| observed.push(trade),
+    )
+    .expect("composed evidence with trade observer");
+    let baseline = profile_trim_order_trade_evidence(
+        &order_delivery,
+        &order_sources,
+        &trade_delivery,
+        &trade_sources,
+    )
+    .expect("composed evidence baseline");
+
+    assert_eq!(evidence, baseline);
+    assert!(evidence.counts_reconcile());
+    assert_eq!(
+        observed.len(),
+        evidence.trades.combined_value_summary.trade_count
+    );
+    assert_eq!(
+        observed
+            .iter()
+            .map(|trade| trade.member)
+            .collect::<Vec<_>>(),
+        vec![Some(1), Some(2)]
+    );
+    for trade in &observed {
+        assert_eq!(
+            trade.coordinate,
+            SourceCoordinate {
+                record_index: 0,
+                byte_offset: 0,
+            }
+        );
+        assert_eq!(trade.raw, TRADE_FIXTURE[..TRIM_TRADE_RECORD_LEN]);
+        assert_eq!(
+            trade.event.exchange_jiffy,
+            ExchangeJiffy::new(91_200_611_817_222)
+        );
+        assert_eq!(
+            trade
+                .candidates
+                .buy
+                .candidates
+                .iter()
+                .map(|candidate| candidate.member)
+                .collect::<Vec<_>>(),
+            vec![Some(1)]
+        );
+        assert_eq!(
+            trade
+                .candidates
+                .sell
+                .candidates
+                .iter()
+                .map(|candidate| candidate.member)
+                .collect::<Vec<_>>(),
+            vec![Some(2)]
+        );
+    }
+
+    let mut reversed_observed = Vec::new();
+    let reversed = profile_trim_order_trade_evidence_with_trade_observer(
+        &order_delivery,
+        &[order_sources[1], order_sources[0]],
+        &trade_delivery,
+        &[trade_sources[1], trade_sources[0]],
+        |trade| reversed_observed.push(trade),
+    )
+    .expect("reversed composed evidence with trade observer");
+    assert_eq!(reversed, evidence);
+    assert_eq!(reversed_observed, observed);
+}
+
+#[test]
 fn rejects_incomplete_order_members_before_reading_trade_bytes() {
     let date = source_date(18);
     let order_delivery = delivery(CmRecordKind::Orders, date);
@@ -159,6 +264,24 @@ fn rejects_incomplete_order_members_before_reading_trade_bytes() {
             }
         ))
     );
+
+    let mut observed_trades = 0;
+    assert_eq!(
+        profile_trim_order_trade_evidence_with_trade_observer(
+            &order_delivery,
+            &order_sources,
+            &trade_delivery,
+            &trade_sources,
+            |_| observed_trades += 1,
+        ),
+        Err(TrimOrderTradeEvidenceError::OrderReplay(
+            CmStreamSourceSetError::StreamMembersMismatch {
+                expected: vec![Some(1), Some(2)],
+                actual: vec![Some(1)],
+            }
+        ))
+    );
+    assert_eq!(observed_trades, 0);
 }
 
 #[test]
@@ -204,6 +327,26 @@ fn rejects_cross_date_evidence_before_reading_trade_bytes() {
             }
         ))
     );
+
+    let mut observed_trades = 0;
+    assert_eq!(
+        profile_trim_order_trade_evidence_with_trade_observer(
+            &order_delivery,
+            &order_sources,
+            &trade_delivery,
+            &trade_sources,
+            |_| observed_trades += 1,
+        ),
+        Err(TrimOrderTradeEvidenceError::TradeProfile(
+            TradeCandidateStreamSetError::OrderTradeDeliveryMismatch {
+                order_prefix: CmFilePrefix::Cm,
+                trade_prefix: CmFilePrefix::Cm,
+                order_source_date: order_date,
+                trade_source_date: trade_date,
+            }
+        ))
+    );
+    assert_eq!(observed_trades, 0);
 }
 
 #[test]

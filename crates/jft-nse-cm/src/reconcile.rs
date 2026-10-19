@@ -1924,13 +1924,34 @@ pub fn profile_trim_order_trade_evidence<'a>(
     trade_delivery: &CmPairedStreamSet,
     trade_sources: &[CmStreamSource<'a>],
 ) -> Result<TrimOrderTradeEvidence<'a>, TrimOrderTradeEvidenceError> {
+    profile_trim_order_trade_evidence_with_trade_observer(
+        order_delivery,
+        order_sources,
+        trade_delivery,
+        trade_sources,
+        |_| {},
+    )
+}
+
+pub fn profile_trim_order_trade_evidence_with_trade_observer<'a>(
+    order_delivery: &CmPairedStreamSet,
+    order_sources: &[CmStreamSource<'a>],
+    trade_delivery: &CmPairedStreamSet,
+    trade_sources: &[CmStreamSource<'a>],
+    observe_trade: impl FnMut(LocatedTradeCandidateEvidence),
+) -> Result<TrimOrderTradeEvidence<'a>, TrimOrderTradeEvidenceError> {
     let orders = replay_trim_order_stream_set(order_delivery, order_sources)
         .map_err(TrimOrderTradeEvidenceError::OrderReplay)?;
     let order_summary = orders
         .combined_summary()
         .map_err(TrimOrderTradeEvidenceError::OrderSummary)?;
-    let trades = profile_trim_trade_candidate_stream_set(&orders, trade_delivery, trade_sources)
-        .map_err(TrimOrderTradeEvidenceError::TradeProfile)?;
+    let trades = profile_trim_trade_candidate_stream_set_with_observer(
+        &orders,
+        trade_delivery,
+        trade_sources,
+        observe_trade,
+    )
+    .map_err(TrimOrderTradeEvidenceError::TradeProfile)?;
 
     Ok(TrimOrderTradeEvidence {
         orders,
