@@ -61,6 +61,15 @@ pub struct LocatedLifecycleTransition {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LocatedStreamLifecycleTransition {
+    pub member: Option<u8>,
+    pub coordinate: SourceCoordinate,
+    pub event: OrderEvent,
+    pub raw: [u8; TRIM_ORDER_RECORD_LEN],
+    pub transition: LifecycleTransition,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TrimOrderReplay<'a> {
     pub lifecycle: OrderLifecycle,
     pub active_provenance: BTreeMap<OrderKey, ActiveOrderProvenance>,
@@ -2078,14 +2087,31 @@ pub fn replay_trim_order_stream_set<'a>(
     delivery: &CmPairedStreamSet,
     sources: &[CmStreamSource<'a>],
 ) -> Result<TrimOrderStreamSetReplay<'a>, CmStreamSourceSetError> {
+    replay_trim_order_stream_set_with_observer(delivery, sources, |_| {})
+}
+
+pub fn replay_trim_order_stream_set_with_observer<'a>(
+    delivery: &CmPairedStreamSet,
+    sources: &[CmStreamSource<'a>],
+    mut observe: impl FnMut(LocatedStreamLifecycleTransition),
+) -> Result<TrimOrderStreamSetReplay<'a>, CmStreamSourceSetError> {
     let ordered_sources = ordered_trim_stream_sources(delivery, sources, CmRecordKind::Orders)?;
-    let streams = ordered_sources
-        .into_iter()
-        .map(|stream| TrimOrderStreamReplay {
+    let mut streams = Vec::with_capacity(ordered_sources.len());
+    for stream in ordered_sources {
+        let replay = replay_trim_order_source_with_observer(stream.source, |located| {
+            observe(LocatedStreamLifecycleTransition {
+                member: stream.member,
+                coordinate: located.coordinate,
+                event: located.event,
+                raw: located.raw,
+                transition: located.transition,
+            });
+        });
+        streams.push(TrimOrderStreamReplay {
             member: stream.member,
-            replay: replay_trim_order_source(stream.source),
-        })
-        .collect();
+            replay,
+        });
+    }
 
     Ok(TrimOrderStreamSetReplay {
         delivery: delivery.clone(),

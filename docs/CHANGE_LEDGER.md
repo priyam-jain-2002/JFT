@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-20 - Observe successful transitions across independent Order streams
+
+- **Changed:** Validated Trim Order stream-set replay now offers a member-aware observer for every successful lifecycle transition. Observations preserve member, source coordinate, canonical event, exact raw 68-byte record, and entered/modified/cancelled delta in deterministic validated-member then per-source order; the original stream-set API delegates with a no-op callback.
+- **Why:** Single-source transition evidence was insufficient for representative split deliveries, while flattening streams or making downstream Python reparse raw Orders would violate the established boundary. This exposes independent source evidence without choosing a cross-stream merge.
+- **Validation:** The integration test proves exact three-transition member/coordinate/raw/event order across two streams, equality with the original replay report, and invariance when caller sources are reversed. The member-mismatch test proves validation returns the same typed error with zero callbacks. All 165 default Rust tests pass.
+- **Related:** Phase 1 multi-stream replay, provenance, and Rust/Python boundary gates.
+- **Follow-up:** Do not combine Order and Trade callbacks into durable output until ordering evidence and DEC-2026-009 define merge, identity, versioning, and writer commit/error semantics.
+
+---
+
 ## 2026-10-20 - Forward Trade evidence through composed profiling
 
 - **Changed:** The composed Trim Order/Trade report builder now has a Trade-observer variant and the original builder delegates to it with a no-op callback. Successful Trade observations use the same parse, candidate, and aggregate path as the returned report; Order member validation and Order/Trade delivery identity checks occur before any callback.

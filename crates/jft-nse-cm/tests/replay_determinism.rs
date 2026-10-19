@@ -10,6 +10,7 @@ use jft_nse_cm::reconcile::{
     CmStreamSource, CmStreamSourceSetError, OrderReplaySummary, OrderReplaySummaryError,
     SessionObservationCountError, SessionObservationCounts, SourceCoordinate, TrimOrderReplay,
     replay_trim_order_source, replay_trim_order_source_with_observer, replay_trim_order_stream_set,
+    replay_trim_order_stream_set_with_observer,
 };
 
 const ENTRY_FIXTURE: &[u8] =
@@ -323,6 +324,76 @@ fn paired_stream_replay_is_deterministic_but_does_not_merge_streams() {
 }
 
 #[test]
+fn paired_stream_observer_emits_successes_in_member_then_source_order() {
+    let delivery = split_order_delivery();
+    let member_one = [ENTRY_FIXTURE, MODIFY_FIXTURE].concat();
+    let sources = [
+        CmStreamSource {
+            member: Some(2),
+            source: ENTRY_FIXTURE,
+        },
+        CmStreamSource {
+            member: Some(1),
+            source: &member_one,
+        },
+    ];
+
+    let mut observed = Vec::new();
+    let replay = replay_trim_order_stream_set_with_observer(&delivery, &sources, |transition| {
+        observed.push(transition);
+    })
+    .expect("observed stream replay");
+    let baseline = replay_trim_order_stream_set(&delivery, &sources).expect("baseline replay");
+
+    assert_eq!(replay, baseline);
+    assert!(replay.counts_reconcile());
+    assert_eq!(observed.len(), 3);
+    assert_eq!(
+        observed
+            .iter()
+            .map(|transition| transition.member)
+            .collect::<Vec<_>>(),
+        vec![Some(1), Some(1), Some(2)]
+    );
+    assert_eq!(
+        observed
+            .iter()
+            .map(|transition| transition.coordinate)
+            .collect::<Vec<_>>(),
+        vec![
+            SourceCoordinate {
+                record_index: 0,
+                byte_offset: 0,
+            },
+            SourceCoordinate {
+                record_index: 1,
+                byte_offset: TRIM_ORDER_RECORD_LEN + 1,
+            },
+            SourceCoordinate {
+                record_index: 0,
+                byte_offset: 0,
+            },
+        ]
+    );
+    assert_eq!(observed[0].raw, ENTRY_FIXTURE[..TRIM_ORDER_RECORD_LEN]);
+    assert_eq!(observed[1].raw, MODIFY_FIXTURE[..TRIM_ORDER_RECORD_LEN]);
+    assert_eq!(observed[2].raw, ENTRY_FIXTURE[..TRIM_ORDER_RECORD_LEN]);
+    assert_eq!(observed[0].event.activity, OrderActivity::Entry);
+    assert_eq!(observed[1].event.activity, OrderActivity::Modify);
+    assert_eq!(observed[2].event.activity, OrderActivity::Entry);
+
+    let mut reversed_observed = Vec::new();
+    let reversed = replay_trim_order_stream_set_with_observer(
+        &delivery,
+        &[sources[1], sources[0]],
+        |transition| reversed_observed.push(transition),
+    )
+    .expect("reversed observed stream replay");
+    assert_eq!(reversed, replay);
+    assert_eq!(reversed_observed, observed);
+}
+
+#[test]
 fn paired_stream_replay_retains_stream_context_for_quarantine() {
     let delivery = split_order_delivery();
     let mut invalid = ENTRY_FIXTURE.to_vec();
@@ -364,6 +435,18 @@ fn paired_stream_replay_rejects_member_mismatch_before_parsing() {
             actual: vec![Some(1)],
         })
     );
+
+    let mut observed_transitions = 0;
+    assert_eq!(
+        replay_trim_order_stream_set_with_observer(&delivery, &sources, |_| {
+            observed_transitions += 1;
+        }),
+        Err(CmStreamSourceSetError::StreamMembersMismatch {
+            expected: vec![Some(1), Some(2)],
+            actual: vec![Some(1)],
+        })
+    );
+    assert_eq!(observed_transitions, 0);
 }
 
 #[test]
