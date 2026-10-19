@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-20 - Verify independent Order and Trade source permutations
+
+- **Changed:** Expanded composed Trim evidence and Trade-observer determinism tests from one coupled reversal to all four independent forward/reversed combinations of the two-member Order and Trade caller-source arrays.
+- **Why:** Reversing both inputs together could hide an accidental coupling between their caller positions. Each validated stream set must normalize independently before evidence composition.
+- **Validation:** Every independent Order/Trade permutation produces the exact same composed report and exact same member-ordered Trade observation sequence as the baseline. The complete 170-test Rust gate, formatting, compilation, strict Clippy, and diff checks pass.
+- **Related:** Phase 1 multi-stream determinism, composed-evidence, and streaming Trade-observer gates.
+- **Follow-up:** The proof normalizes independent sources only; it does not define a cross-kind event merge, equal-jiffy tie-breaker, or causal Trade match.
+
+---
+
 ## 2026-10-20 - Exhaustively verify raw-jiffy sequence profiling
 
 - **Changed:** Added a dependency-free combinatorial test over every Order raw-jiffy sequence through seven records whose adjacent step is equal, increasing by one, or regressing by one.

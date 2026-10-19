@@ -81,15 +81,18 @@ fn composes_deterministic_order_and_trade_evidence_without_merging_streams() {
         &trade_sources,
     )
     .expect("delivery evidence");
-    let reversed = profile_trim_order_trade_evidence(
-        &order_delivery,
-        &[order_sources[1], order_sources[0]],
-        &trade_delivery,
-        &[trade_sources[1], trade_sources[0]],
-    )
-    .expect("reversed delivery evidence");
-
-    assert_eq!(evidence, reversed);
+    for order_sources in [order_sources, [order_sources[1], order_sources[0]]] {
+        for trade_sources in [trade_sources, [trade_sources[1], trade_sources[0]]] {
+            let permuted = profile_trim_order_trade_evidence(
+                &order_delivery,
+                &order_sources,
+                &trade_delivery,
+                &trade_sources,
+            )
+            .expect("independently permuted delivery evidence");
+            assert_eq!(permuted, evidence);
+        }
+    }
     assert!(evidence.counts_reconcile());
     assert_eq!(evidence.orders.delivery, order_delivery);
     assert_eq!(evidence.trades.delivery, trade_delivery);
@@ -217,17 +220,21 @@ fn composed_trade_observer_matches_the_authoritative_profile_without_reparsing()
         );
     }
 
-    let mut reversed_observed = Vec::new();
-    let reversed = profile_trim_order_trade_evidence_with_trade_observer(
-        &order_delivery,
-        &[order_sources[1], order_sources[0]],
-        &trade_delivery,
-        &[trade_sources[1], trade_sources[0]],
-        |trade| reversed_observed.push(trade),
-    )
-    .expect("reversed composed evidence with trade observer");
-    assert_eq!(reversed, evidence);
-    assert_eq!(reversed_observed, observed);
+    for order_sources in [order_sources, [order_sources[1], order_sources[0]]] {
+        for trade_sources in [trade_sources, [trade_sources[1], trade_sources[0]]] {
+            let mut permuted_observed = Vec::new();
+            let permuted = profile_trim_order_trade_evidence_with_trade_observer(
+                &order_delivery,
+                &order_sources,
+                &trade_delivery,
+                &trade_sources,
+                |trade| permuted_observed.push(trade),
+            )
+            .expect("independently permuted evidence with Trade observer");
+            assert_eq!(permuted, evidence);
+            assert_eq!(permuted_observed, observed);
+        }
+    }
 }
 
 #[test]
