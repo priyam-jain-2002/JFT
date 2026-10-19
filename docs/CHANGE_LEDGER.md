@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-20 - Exhaustively verify raw-jiffy sequence profiling
+
+- **Changed:** Added a dependency-free combinatorial test over every Order raw-jiffy sequence through seven records whose adjacent step is equal, increasing by one, or regressing by one.
+- **Why:** Hand-picked timing examples can miss interactions among extrema, equal-run accounting, and multiple regressions. The profiler must be independently trustworthy before representative delivery measurements can inform an ordering decision.
+- **Validation:** All 1,093 sequences and 7,108 exact Trim Order records match an independently computed reference for source/framed/parsed counts, raw-jiffy min/max, consecutive ties, every largest-equal-run length from one through seven, and every regression's previous/current record index, byte offset, and jiffy. The complete 170-test Rust gate, formatting, compilation, strict Clippy, and diff checks pass.
+- **Related:** Phase 1 raw-jiffy, ordering-evidence, and source-coordinate gates.
+- **Follow-up:** This proves deterministic within-source profiling only. Representative current paired data and owner consultation remain required before UTC conversion, equal-jiffy tie-breaking, or cross-stream causal ordering.
+
+---
+
 ## 2026-10-20 - Exhaustively verify cross-stream Trade candidates
 
 - **Changed:** Added a dependency-free combinatorial test over all 216 combinations of six synthetic candidate-source states across three independent Order streams. Each configuration profiles one Trade against missing, correctly sided, side-mismatched, before/equal/after-jiffy, and dual-reference entry evidence.

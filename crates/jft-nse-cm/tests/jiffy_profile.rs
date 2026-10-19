@@ -96,6 +96,118 @@ fn records_every_regression_with_exact_adjacent_coordinates() {
 }
 
 #[test]
+fn exhaustively_profiles_short_raw_jiffy_sequences() {
+    const BASE_JIFFY: u64 = 91_200_611_817_200;
+    const MAX_SEQUENCE_LEN: usize = 7;
+
+    let mut sequence_count = 0_usize;
+    let mut record_count = 0_usize;
+    let mut saw_equal = false;
+    let mut saw_increase = false;
+    let mut saw_regression = false;
+    let mut largest_runs_seen = [false; MAX_SEQUENCE_LEN + 1];
+
+    for sequence_len in 1..=MAX_SEQUENCE_LEN {
+        let configuration_count = 3_usize.pow((sequence_len - 1) as u32);
+        for mut configuration in 0..configuration_count {
+            let mut raw_jiffies = Vec::with_capacity(sequence_len);
+            raw_jiffies.push(BASE_JIFFY);
+
+            for _ in 1..sequence_len {
+                let step = match configuration % 3 {
+                    0 => 0_i64,
+                    1 => 1_i64,
+                    2 => -1_i64,
+                    _ => unreachable!("remainder is always in 0..3"),
+                };
+                configuration /= 3;
+                let previous = *raw_jiffies.last().expect("initial jiffy exists") as i64;
+                raw_jiffies.push((previous + step) as u64);
+            }
+
+            let mut source = Vec::with_capacity(sequence_len * ENTRY_FIXTURE.len());
+            for raw_jiffy in &raw_jiffies {
+                let mut record = ENTRY_FIXTURE.to_vec();
+                let encoded = format!("{raw_jiffy:014}");
+                assert_eq!(encoded.len(), 14);
+                record[22..36].copy_from_slice(encoded.as_bytes());
+                source.extend_from_slice(&record);
+            }
+
+            let mut expected_equal_count = 0_usize;
+            let mut expected_largest_run = 1_usize;
+            let mut current_run = 1_usize;
+            let mut expected_regressions = Vec::new();
+
+            for index in 1..raw_jiffies.len() {
+                let previous = raw_jiffies[index - 1];
+                let current = raw_jiffies[index];
+                if current == previous {
+                    saw_equal = true;
+                    expected_equal_count += 1;
+                    current_run += 1;
+                    expected_largest_run = expected_largest_run.max(current_run);
+                } else {
+                    current_run = 1;
+                    if current > previous {
+                        saw_increase = true;
+                    } else {
+                        saw_regression = true;
+                        expected_regressions.push(JiffyRegression {
+                            previous_coordinate: SourceCoordinate {
+                                record_index: index - 1,
+                                byte_offset: (index - 1) * ENTRY_FIXTURE.len(),
+                            },
+                            previous_jiffy: ExchangeJiffy::new(previous),
+                            current_coordinate: SourceCoordinate {
+                                record_index: index,
+                                byte_offset: index * ENTRY_FIXTURE.len(),
+                            },
+                            current_jiffy: ExchangeJiffy::new(current),
+                        });
+                    }
+                }
+            }
+
+            let profile = profile_trim_order_jiffies(&source);
+            assert!(profile.counts_reconcile());
+            assert_eq!(profile.payload_width, TRIM_ORDER_RECORD_LEN);
+            assert_eq!(profile.source_bytes, source.len());
+            assert_eq!(profile.framed_records, sequence_len);
+            assert_eq!(profile.parsed_records, sequence_len);
+            assert!(profile.quarantines.is_empty());
+            assert!(profile.framing_error.is_none());
+            assert_eq!(profile.sequence.observation_count, sequence_len);
+            assert_eq!(
+                profile.sequence.minimum,
+                raw_jiffies.iter().copied().min().map(ExchangeJiffy::new)
+            );
+            assert_eq!(
+                profile.sequence.maximum,
+                raw_jiffies.iter().copied().max().map(ExchangeJiffy::new)
+            );
+            assert_eq!(
+                profile.sequence.equal_consecutive_observations,
+                expected_equal_count
+            );
+            assert_eq!(profile.sequence.largest_equal_run, expected_largest_run);
+            assert_eq!(profile.sequence.regressions, expected_regressions);
+
+            largest_runs_seen[expected_largest_run] = true;
+            sequence_count += 1;
+            record_count += sequence_len;
+        }
+    }
+
+    assert_eq!(sequence_count, 1_093);
+    assert_eq!(record_count, 7_108);
+    assert!(saw_equal);
+    assert!(saw_increase);
+    assert!(saw_regression);
+    assert!(largest_runs_seen[1..].iter().all(|seen| *seen));
+}
+
+#[test]
 fn quarantined_records_are_accounted_but_excluded_from_jiffy_observations() {
     let mut invalid = ENTRY_FIXTURE.to_vec();
     invalid[22] = b'X';
