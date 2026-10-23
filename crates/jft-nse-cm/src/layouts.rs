@@ -69,6 +69,21 @@ impl SourceDate {
     const fn documented(year: u16, month: u8, day: u8) -> Self {
         Self { year, month, day }
     }
+
+    #[must_use]
+    pub const fn year(self) -> u16 {
+        self.year
+    }
+
+    #[must_use]
+    pub const fn month(self) -> u8 {
+        self.month
+    }
+
+    #[must_use]
+    pub const fn day(self) -> u8 {
+        self.day
+    }
 }
 
 const fn days_in_month(year: u16, month: u8) -> u8 {

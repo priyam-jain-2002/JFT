@@ -3,9 +3,12 @@
 use std::fmt;
 
 use md5::Md5;
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 use sha2::{Digest, Sha256};
 
 use crate::layouts::{SourceDate, SourceDateError};
+
+pub mod v1;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Sha256Digest([u8; 32]);
@@ -36,6 +39,25 @@ impl Sha256Digest {
 impl fmt::Display for Sha256Digest {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(&self.to_hex())
+    }
+}
+
+impl Serialize for Sha256Digest {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.to_hex())
+    }
+}
+
+impl<'de> Deserialize<'de> for Sha256Digest {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        Self::from_hex(&value).map_err(de::Error::custom)
     }
 }
 
@@ -71,11 +93,49 @@ impl fmt::Display for Md5Digest {
     }
 }
 
+impl Serialize for Md5Digest {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.to_hex())
+    }
+}
+
+impl<'de> Deserialize<'de> for Md5Digest {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        Self::from_hex(&value).map_err(de::Error::custom)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HexDigestError {
     InvalidLength { expected: usize, actual: usize },
     InvalidCharacter { index: usize, byte: u8 },
 }
+
+impl fmt::Display for HexDigestError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidLength { expected, actual } => {
+                write!(
+                    formatter,
+                    "digest hex length must be {expected} bytes, got {actual}"
+                )
+            }
+            Self::InvalidCharacter { index, byte } => write!(
+                formatter,
+                "digest hex contains invalid byte {byte:#04x} at index {index}"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for HexDigestError {}
 
 #[must_use]
 pub fn sha256_digest(payload: &[u8]) -> Sha256Digest {
@@ -182,19 +242,22 @@ const fn is_ascii_text_byte(byte: u8) -> bool {
     matches!(byte, b'\t' | b'\n' | b'\r' | 0x20..=0x7e)
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum CmFilePrefix {
     Cm,
     Cash,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum CmProduct {
     Full,
     Trim,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum CmRecordKind {
     Orders,
     Trades,

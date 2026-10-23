@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-23 - Implement deterministic Rust manifest v1
+
+- **Changed:** Added explicit manifest-v1 Rust types and `schemas/nse_cm/manifest.schema.json`; deterministic compact JSON with a terminal LF; strict schema ID/major, unknown-field, logical-path, date, stream, trigger-status, record/byte-accounting, and raw-jiffy-bound validation; compressed MD5/SHA-256 plus decompressed SHA-256 evidence; processing identity; and payload-based bounded record identity. Added a synthetic byte-for-byte golden manifest. No canonical market-event fields, UTC conversion, cross-stream ordering, or Trade quantity semantics were introduced.
+- **Why:** DEC-2026-009 requires a stable provenance contract before durable canonical output or downstream Python consumption. Keeping the schema explicit prevents Rust implementation details from silently becoming the public wire contract.
+- **Validation:** Nine focused tests prove byte-identical repeated serialization, golden round trips, schema syntax/discriminators, all five trigger outcomes, strict malformed path/date/stream/version/unknown-field rejection, fail-closed count/byte/jiffy accounting, bounded record identity, and identity stability across compressed-container changes and renames. All 184 default Rust tests, locked format/compile/test/strict-Clippy checks, and diff checks pass. RustSec loaded 1,351 advisories and found none in the 23-package lockfile; the 22 third-party packages have no duplicate versions and declare only MIT, Apache-2.0, Unlicense, or Unicode-3.0 combinations. Independent JSON-Schema validation and Python conformance remain the next checkpoint.
+- **Related:** Active DEC-2026-009; Phase 1 manifest, integrity, provenance, and Rust/Python-boundary gates.
+- **Follow-up:** Add the independent Python reader/schema conformance checkpoint. Production trigger-file parsing, disk persistence, and attaching manifest identity to quarantine/output artifacts remain separate work; canonical event rows remain deferred pending representative data.
+
+---
+
 ## 2026-10-23 - Add audited digest and record-identity foundations
 
 - **Changed:** Added locked RustCrypto `md-5` 0.11 and `sha2` 0.11 dependencies, typed 16/32-byte digests with canonical lowercase hex encoding and strict upper/lowercase decoding, and the active DEC-2026-009 record identity tuple `(decompressed_payload_sha256, record_kind, zero_based_record_index)`.
