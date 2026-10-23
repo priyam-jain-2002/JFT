@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-23 - Activate manifest identity v1 and defer canonical event rows
+
+- **Changed:** The owner activated DEC-2026-009 for deterministic manifest integrity, payload-based record identity, explicit compatibility/versioning, minimal `serde`/JSON/MD5/SHA-256 dependencies, and Rust/Python manifest conformance. The decision was amended to defer a unified Trim/Full canonical Order/Trade shape until representative current data validates event semantics.
+- **Why:** File and record lineage can be made deterministic now without buying data, while freezing uncertain Full-only fields or cross-product nullability would create premature migration risk.
+- **Validation:** The full and compact decision logs, governing schema section, Phase 1 checklist/immediate actions, schema-directory boundary, and README now agree on the active manifest scope and deferred event scope. Markdown diff checks pass; no application code or schema was changed in this governance checkpoint.
+- **Related:** DEC-2026-008 Rust/Python boundary; active DEC-2026-009; Phase 1 manifest/integrity and representative-data gates.
+- **Follow-up:** Implement and test manifest v1 first. Do not infer event ordering, UTC, Trade decrement, or canonical event fields from this approval.
+
+---
+
 ## 2026-10-20 - Correct the governing Phase 1 next gate
 
 - **Changed:** Replaced the stale checklist header that still named deterministic fixture replay as the next gate. The header now records fixture-first parser/replay evidence as verified and identifies representative paired current Trim qualification plus owner review of proposed DEC-2026-009 as the gates before durable canonical output.

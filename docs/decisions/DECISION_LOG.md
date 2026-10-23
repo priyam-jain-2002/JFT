@@ -336,9 +336,9 @@ Phase 1 expected modules use Rust; Python begins under `python/jft/`; the govern
 ## DEC-2026-009 - Freeze manifest identity v1 and minimal integrity dependencies
 
 - **Date:** 2026-10-17
-- **Status:** Proposed - owner decision required; not implemented
+- **Status:** Active - owner approved with amendment on 2026-10-23
 - **Owner:** Project owner
-- **Scope:** Architecture, data, tooling
+- **Scope:** Manifest integrity, record identity, versioning, Rust/Python boundary, tooling
 - **Supersedes:** —
 - **Superseded by:** —
 - **Review trigger:** Representative trigger/files contradict the fields; Python conformance exposes ambiguity; or dependency/security review rejects a crate.
@@ -356,7 +356,7 @@ The design must satisfy these constraints:
 - accepted rows can point to immutable source bytes, while quarantine retains rejected raw bytes inline;
 - Rust remains authoritative and Python rejects unknown schema versions rather than guessing.
 
-### Proposed decision
+### Active decision
 
 Activate the following as manifest/canonical identity v1:
 
@@ -366,9 +366,9 @@ Activate the following as manifest/canonical identity v1:
 4. Separate deterministic manifest content from optional run-observation metadata. The deterministic core contains no generated-at timestamp, absolute path, host/user identity, or nondeterministically ordered map.
 5. Identify a record by the versioned tuple `(decompressed_payload_sha256, record_kind, zero_based_record_index)`. Store byte offset as independently checked provenance, not as the primary identity. Encode tuple components as separate fields initially; do not hash the tuple again until a compact key has a measured consumer need.
 6. Record both delivery and payload integrity: logical source path; product/layout/spec ID; record kind; stream/part when known; compressed size, MD5, and SHA-256; trigger-declared size/MD5 and pass/fail/not-provided status; decompressed byte count and SHA-256; payload width/delimiter; parsed/quarantined/framing counts; raw-jiffy bounds; configuration/schema/code identity.
-7. Keep wire-layout parser types product/version-specific, then map them into unified canonical Order and Trade rows with explicit `layout_id` and nullable Full-only fields. Accepted canonical rows retain immutable source pointer fields; quarantine retains full rejected bytes plus location and reason.
+7. Keep wire-layout parser types product/version-specific. Do not freeze a unified Trim/Full canonical Order or Trade row in this decision; canonical event fields, nullability, and wire-to-canonical mappings remain deferred until representative current data validates the semantics. Accepted-row source pointers and quarantine linkage will be specified with that later event-schema decision.
 
-This is a proposal, not an active decision. No dependency or schema implementation is authorized by this record until the owner changes its status to **Active**, with any requested amendments captured here.
+The owner activated items 1-6 and the amended item 7 on 2026-10-23. This authorizes the manifest schema, integrity dependencies, deterministic record identity, and cross-language manifest conformance work. It does not authorize a unified canonical event schema, cross-stream ordering, UTC conversion, Trade-driven quantity changes, or a data purchase.
 
 ### Alternatives considered
 
@@ -376,7 +376,7 @@ This is a proposal, not an active decision. No dependency or schema implementati
 - **Custom MD5/SHA-256 or JSON implementation:** avoids dependencies but creates unjustified cryptographic/serialization correctness risk. Rejected.
 - **Use the compressed-file SHA-256 in event identity:** simpler ingestion identity, but benign recompression would rewrite all event keys. Rejected for canonical record identity; retain it as delivery provenance.
 - **Hash the full identity tuple into an opaque event key immediately:** compact, but adds encoding/canonicalization questions and hides useful provenance before a consumer requires it. Deferred.
-- **Separate canonical Trim and Full tables:** avoids null Full-only columns, but duplicates common downstream logic and complicates matched comparison. Not recommended; keep distinct wire types and one canonical shape.
+- **Freeze one unified Trim/Full canonical event shape now:** would simplify the eventual Python interface, but current Full semantics and representative current Trim behavior are not validated. Deferred rather than accepted or rejected.
 - **Add Arrow/Parquet now:** eventually required, but it substantially expands dependencies and should follow the manifest/schema contract rather than define it accidentally. Deferred.
 
 ### Pre-mortem and trade-offs
@@ -385,11 +385,11 @@ This is a proposal, not an active decision. No dependency or schema implementati
 - **Likely failure:** event IDs change when the same payload is recompressed or renamed. **Control:** base identity on decompressed payload SHA-256 and record index; test two delivery containers against one identity set.
 - **Likely failure:** optional Full fields become semantically ambiguous. **Control:** require `layout_id`, explicit nullability/units, and wire-to-canonical conformance fixtures.
 - **Likely failure:** dependencies increase supply-chain/build risk. **Control:** keep the initial set minimal, commit the lockfile, review licenses/advisories, and deny unreviewed additions.
-- **Trade-off:** unified canonical rows contain null Full-only columns, but provide one stable Python interface and simpler Trim/Full comparisons.
+- **Trade-off:** deferring canonical event rows prevents premature semantic lock-in, but postpones the final Python event interface and columnar output.
 
 ### Validation required before and after activation
 
-- Owner explicitly accepts or amends this proposal.
+- Owner approval with the canonical-event-schema deferral is recorded above.
 - Known MD5 and SHA-256 test vectors pass; one-byte tampering fails integrity checks.
 - Golden JSON matches the explicit schema and is byte-identical across repeat runs.
 - Unknown major versions and missing required fields are rejected by both Rust and Python conformance tests.
