@@ -7,3 +7,7 @@ publish = false
 [lib]
 name = "jft_nse_cm"
 path = "src/lib.rs"
+
+[dependencies]
+md-5 = "0.11"
+sha2 = "0.11"

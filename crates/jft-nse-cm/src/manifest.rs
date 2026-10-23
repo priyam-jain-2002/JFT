@@ -1,6 +1,153 @@
 //! Immutable input discovery, integrity evidence, and lineage manifests.
 
+use std::fmt;
+
+use md5::Md5;
+use sha2::{Digest, Sha256};
+
 use crate::layouts::{SourceDate, SourceDateError};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Sha256Digest([u8; 32]);
+
+impl Sha256Digest {
+    pub const HEX_LEN: usize = 64;
+
+    #[must_use]
+    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+
+    #[must_use]
+    pub const fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+
+    #[must_use]
+    pub fn to_hex(self) -> String {
+        encode_lower_hex(&self.0)
+    }
+
+    pub fn from_hex(value: &str) -> Result<Self, HexDigestError> {
+        decode_lower_or_upper_hex(value).map(Self)
+    }
+}
+
+impl fmt::Display for Sha256Digest {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.to_hex())
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Md5Digest([u8; 16]);
+
+impl Md5Digest {
+    pub const HEX_LEN: usize = 32;
+
+    #[must_use]
+    pub const fn from_bytes(bytes: [u8; 16]) -> Self {
+        Self(bytes)
+    }
+
+    #[must_use]
+    pub const fn as_bytes(&self) -> &[u8; 16] {
+        &self.0
+    }
+
+    #[must_use]
+    pub fn to_hex(self) -> String {
+        encode_lower_hex(&self.0)
+    }
+
+    pub fn from_hex(value: &str) -> Result<Self, HexDigestError> {
+        decode_lower_or_upper_hex(value).map(Self)
+    }
+}
+
+impl fmt::Display for Md5Digest {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.to_hex())
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HexDigestError {
+    InvalidLength { expected: usize, actual: usize },
+    InvalidCharacter { index: usize, byte: u8 },
+}
+
+#[must_use]
+pub fn sha256_digest(payload: &[u8]) -> Sha256Digest {
+    Sha256Digest::from_bytes(Sha256::digest(payload).into())
+}
+
+#[must_use]
+pub fn md5_digest(payload: &[u8]) -> Md5Digest {
+    Md5Digest::from_bytes(Md5::digest(payload).into())
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct RecordIdentity {
+    pub decompressed_payload_sha256: Sha256Digest,
+    pub record_kind: CmRecordKind,
+    pub zero_based_record_index: u64,
+}
+
+impl RecordIdentity {
+    #[must_use]
+    pub const fn new(
+        decompressed_payload_sha256: Sha256Digest,
+        record_kind: CmRecordKind,
+        zero_based_record_index: u64,
+    ) -> Self {
+        Self {
+            decompressed_payload_sha256,
+            record_kind,
+            zero_based_record_index,
+        }
+    }
+}
+
+fn encode_lower_hex(bytes: &[u8]) -> String {
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+
+    let mut encoded = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        encoded.push(char::from(DIGITS[usize::from(byte >> 4)]));
+        encoded.push(char::from(DIGITS[usize::from(byte & 0x0f)]));
+    }
+    encoded
+}
+
+fn decode_lower_or_upper_hex<const N: usize>(value: &str) -> Result<[u8; N], HexDigestError> {
+    let expected = N * 2;
+    if value.len() != expected {
+        return Err(HexDigestError::InvalidLength {
+            expected,
+            actual: value.len(),
+        });
+    }
+
+    let mut decoded = [0_u8; N];
+    let (pairs, remainder) = value.as_bytes().as_chunks::<2>();
+    debug_assert!(remainder.is_empty());
+    for (index, pair) in pairs.iter().enumerate() {
+        let high = decode_hex_nibble(pair[0], index * 2)?;
+        let low = decode_hex_nibble(pair[1], index * 2 + 1)?;
+        decoded[index] = (high << 4) | low;
+    }
+    Ok(decoded)
+}
+
+fn decode_hex_nibble(byte: u8, index: usize) -> Result<u8, HexDigestError> {
+    match byte {
+        b'0'..=b'9' => Ok(byte - b'0'),
+        b'a'..=b'f' => Ok(byte - b'a' + 10),
+        b'A'..=b'F' => Ok(byte - b'A' + 10),
+        _ => Err(HexDigestError::InvalidCharacter { index, byte }),
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PayloadSignature {

@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-23 - Add audited digest and record-identity foundations
+
+- **Changed:** Added locked RustCrypto `md-5` 0.11 and `sha2` 0.11 dependencies, typed 16/32-byte digests with canonical lowercase hex encoding and strict upper/lowercase decoding, and the active DEC-2026-009 record identity tuple `(decompressed_payload_sha256, record_kind, zero_based_record_index)`.
+- **Why:** Trigger MD5, internal SHA-256 lineage, and recompression-stable record identity need one authoritative Rust implementation before manifest JSON or downstream Python conformance can be trusted.
+- **Validation:** Five focused tests match the published empty/`abc` MD5 and SHA-256 vectors, prove exact invalid-length/invalid-byte rejection, round-trip both hex cases, detect a one-byte payload change, and distinguish every identity component. All 175 default Rust tests, format, compilation, strict Clippy, and diff checks pass. RustSec loaded 1,351 advisories and found none in the 12-package lockfile; the 11 third-party packages have no duplicate versions and each declares MIT or Apache-2.0 licensing.
+- **Related:** Active DEC-2026-009; Phase 1 integrity, record-identity, and manifest gates.
+- **Follow-up:** Add explicit manifest v1 JSON types/schema and deterministic serialization next. This checkpoint does not claim trigger parsing, manifest output, canonical event rows, or data-purchase validation.
+
+---
+
 ## 2026-10-23 - Activate manifest identity v1 and defer canonical event rows
 
 - **Changed:** The owner activated DEC-2026-009 for deterministic manifest integrity, payload-based record identity, explicit compatibility/versioning, minimal `serde`/JSON/MD5/SHA-256 dependencies, and Rust/Python manifest conformance. The decision was amended to defer a unified Trim/Full canonical Order/Trade shape until representative current data validates event semantics.
