@@ -6,10 +6,10 @@ This is the single execution source of truth for JFT. It combines the product br
 
 - **Document status:** Governing plan; fixture-first current-Trim parser/replay and cross-language manifest-v1 evidence verified, representative-data acceptance still open
 - **Current phase:** Phase 1 - deterministic parser and book reconstruction
-- **Last updated:** 2026-10-23
+- **Last updated:** 2026-10-25
 - **Decision owner:** Project owner
 - **Initial market/mode:** NSE Cash Market (CM), offline research only
-- **Next gate:** Attach manifest-v1 identity to existing quarantine/evidence outputs while qualifying representative paired current Trim data; canonical event rows remain deferred
+- **Next gate:** Owner review of proposed DEC-2026-010 for the replay/source-identity boundary while representative paired current Trim qualification continues; canonical event rows remain deferred
 - **External dependency (not repository scope):** Legal/compliance review still needs to be completed before operational live, capital, or external-product activation; it does not block offline repository engineering
 - **Related:** [full decisions](decisions/DECISION_LOG.md), [compact decisions](decisions/COMPACT_DECISION_LOG.md), [research index](research/README.md), [change ledger](CHANGE_LEDGER.md)
 
@@ -548,7 +548,7 @@ Orders + Trades -> integrity -> parser -> raw-event validation -> jiffy validati
 - [ ] Freeze canonical Order/Trade event schemas and wire-to-canonical mappings only after representative current data validates the semantics; DEC-2026-009 deliberately does not authorize this shape.
 - [ ] Resolve signed numeric encoding and Full Trigger/Limit/flag conditional rules before Full semantic parsing; do not promote the current unsigned fixture behavior into a cross-era canonical contract without evidence.
 - [x] Preserve every quarantined Trim record's exact raw bytes including padding, validated stream member, zero-based record index, byte offset, optional independently valid raw jiffy, failure field, and typed reason. Exhaustive single-byte mutation tests prove rejected bytes are retained exactly.
-- [ ] Attach the manifest-v1 durable logical-file and decompressed-payload identity to every quarantine; the enclosing in-memory report currently retains validated delivery/member identity but no frozen file key.
+- [ ] After owner activation of proposed [DEC-2026-010](decisions/DECISION_LOG.md#dec-2026-010), attach validated logical-file and decompressed-payload identity to every quarantine through the additive identified-source boundary; the current report retains delivery/member identity but no frozen file key.
 - [x] Preserve optional exact raw-jiffy evidence on located Order and Trade quarantines when the documented jiffy bytes are independently valid; retain `None` for invalid jiffy bytes and never promote a quarantined record into parsed-event/jiffy-sequence counts. Manifest-v1 identity is now defined but is not yet attached to quarantine outputs.
 - [x] Expose a deterministic borrowed quarantine dossier across the composed Trim report with record kind, validated stream member, record index/byte offset, raw bytes, failure field/reason, and optional raw jiffy. Preserve the enclosing validated delivery identity and do not make Python reparse raw records.
 - [x] Aggregate quarantine dossiers by record kind, stream, exact failure field, and full reason while separately counting validated raw-jiffy availability; reconcile every nonzero class and preserve deterministic first-observed ordering.
@@ -829,7 +829,7 @@ Stop the engineering project or alpha path if, after a predeclared remediation a
 1. Obtain the approved data/compute budget and representative paired current CM Trim Order/Trade data plus triggers across ordinary, volatile, Pre-Open, Regular Market, and Closing Auction conditions. Do not use synthetic or legacy files as a substitute for this gate.
 2. Run the implemented content-signature, inventory, framing, parser, raw-jiffy, independent replay, trade-candidate, session-count, cross-session dossier, route, and observation-taxonomy reports across every validated member. Reconcile all counts, residue, quantity, notional, and source coverage before interpreting anomalies.
 3. Use representative evidence to resolve stream/equal-jiffy ordering, session reset/carry, modify/cancel quantity meaning, trade-driven quantity semantics, signed encoding, Full Trigger/Limit conditional rules, and the 19,800-second jiffy-epoch discrepancy. Preserve ambiguity and request vendor clarification where evidence cannot decide.
-4. Attach the now cross-language-conformant manifest-v1 identity to existing quarantine/evidence outputs. Keep canonical event rows deferred as approved, and separately add production trigger-file parsing/manifest persistence only when the disk-input path is designed.
+4. Owner accepts or amends proposed [DEC-2026-010](decisions/DECISION_LOG.md#dec-2026-010), then implement the additive identified-source boundary, pre-parse identity checks, quarantine record identities, and post-replay manifest reconciliation. Keep canonical event rows deferred as approved.
 5. After ordering and canonical event semantics are evidenced, approve that separate event-schema decision, then implement fallible canonical transition output, deterministic checkpoint/final-state hashes, and the Python canonical-data reader/conformance suite. Python must not read raw NSE Order/Trade bytes or reproduce the authoritative book.
 6. Use the qualified public legacy sample only for legacy-width framing/field-domain evidence and incomplete-replay tests; do not treat it as representative current-market or delivery evidence.
 7. Keep legal/compliance as an external “needs to be done” marker; it must not block offline repository engineering, and the repository must not claim operational clearance.

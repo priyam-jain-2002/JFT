@@ -398,6 +398,73 @@ The owner activated items 1-6 and the amended item 7 on 2026-10-23. This authori
 
 ---
 
+<a id="dec-2026-010"></a>
+
+## DEC-2026-010 - Bind replay sources to manifest identity without making replay depend on a completed manifest
+
+- **Date:** 2026-10-25
+- **Status:** Proposed - owner decision required before implementation
+- **Owner:** Project owner
+- **Scope:** Rust replay input, manifest assembly, quarantine provenance, deterministic identity
+- **Supersedes:** —
+- **Superseded by:** —
+- **Review trigger:** Owner approval/amendment; representative ingestion shows the source identity is insufficient; or the canonical-output decision changes provenance requirements.
+
+### Context
+
+DEC-2026-009 now has deterministic Rust manifest types, an explicit JSON Schema, golden bytes, and independent Python conformance. The existing replay boundary still accepts `CmStreamSource { member, source }`, so its reports retain delivery/member/coordinate evidence but not the approved logical-file and decompressed-payload identity.
+
+Passing a completed `ManifestV1` into replay initially appeared attractive, but inspection of the implemented contract shows a circular dependency during first ingestion: `parsed_records`, `quarantined_records`, `residue_bytes`, and raw-jiffy bounds are produced by parsing/replay and are themselves manifest fields. Requiring callers to fabricate those values before replay would weaken rather than strengthen provenance. Conversely, annotating a completed report with a manifest afterward can bind the wrong manifest after bytes have already been processed.
+
+The boundary must therefore satisfy all of these constraints:
+
+- compute the decompressed payload SHA-256 once per source, never once per record;
+- validate source kind/member/delivery association before parsing or invoking observers;
+- retain one logical source path per stream without cloning it into every quarantine;
+- derive each record identity exactly as `(payload_sha256, record_kind, zero_based_record_index)`;
+- assemble and reconcile the complete manifest only after parser/replay metrics exist;
+- keep low-level byte-only parser tests simple and keep Python away from raw NSE bytes;
+- make no decision about canonical event fields, UTC, cross-stream order, or Trade quantity semantics.
+
+### Proposed decision
+
+1. Add a validated borrowed `CmSourceIdentity` containing logical source path, decompressed payload SHA-256, and record kind. Its constructor validates the logical path and computes SHA-256 from the supplied decompressed bytes; callers cannot provide an unchecked digest.
+2. Add `IdentifiedCmStreamSource<'a>` containing `member`, borrowed decompressed `source`, and its `CmSourceIdentity`. Keep the current byte-only `CmStreamSource` for isolated parser/profile fixtures, but require identified sources at the composed production/evidence boundary.
+3. Validate every identified source against the paired delivery before reading records: exact member coverage, record kind, and the delivery metadata already enforced by existing APIs. A mismatch emits a typed member-specific error and invokes no observer.
+4. Store one source identity on each per-stream replay/profile result. Derive `RecordIdentity` lazily for quarantines and other located evidence from that identity plus the existing zero-based coordinate. Do not copy the path or digest into every record structure.
+5. Build `ManifestV1` after replay from the precomputed source identity plus reconciled byte/count/jiffy evidence and caller-supplied compressed/trigger/processing evidence. If consuming an existing manifest, verify its source identity and all derived metrics against the completed report before accepting it.
+6. Introduce the identified API additively and prove parity with the existing fixture-only byte APIs before considering migration or removal. This decision does not authorize disk I/O, decompression, canonical event serialization, or a new Python raw-data path.
+
+### Alternatives considered
+
+- **Require `ManifestV1` inside every current `CmStreamSource`:** one apparent source of truth, but circular for first ingestion and forces low-level fixtures to invent compressed/trigger/processing evidence. Not recommended.
+- **Add unchecked digest/path fields directly to `CmStreamSource`:** small type change, but callers could bind a digest that was not computed from the provided bytes and every existing test/call site would need migration. Rejected.
+- **Annotate reports with manifests after replay:** minimal parser churn, but bytes and observers can be processed before identity mismatch is discovered. Rejected for the production/evidence boundary.
+- **Hash independently in every quarantine/event constructor:** locally convenient but repeats whole-payload work and risks inconsistent identities. Rejected.
+- **Replace all byte-only APIs immediately:** strongest single path, but causes broad churn before the additive contract is proven. Deferred.
+
+### Pre-mortem and trade-offs
+
+- **Likely failure:** source bytes and claimed identity diverge. **Control:** private/validated construction computes SHA-256 from the exact borrowed bytes; mutation tests must change the identity.
+- **Likely failure:** a manifest for another member/kind is paired after parsing. **Control:** validate delivery/member/kind before record iteration and assert zero observer calls on rejection.
+- **Likely failure:** logical path or digest is cloned into every dossier. **Control:** source identity is stored once per stream and record identity is derived lazily.
+- **Likely failure:** manifest metrics are trusted rather than reproduced. **Control:** assemble or verify count, residue, byte, and jiffy fields from the completed report.
+- **Likely failure:** additive raw and identified APIs drift. **Control:** parity tests compare complete reports for identical bytes; byte-only APIs remain explicitly fixture-only.
+- **Trade-off:** one SHA-256 pass occurs before parsing and the additive API temporarily increases surface area. This cost buys fail-closed identity binding without creating a first-ingestion cycle.
+
+### Validation required before and after activation
+
+- Owner accepts or amends this decision; Proposed status authorizes documentation only.
+- Known source bytes produce the independently expected SHA-256; a one-byte mutation changes every derived record identity.
+- Rename changes logical-file provenance but not payload-based record identities; recompression remains irrelevant after decompression.
+- Missing/duplicate/wrong-member and wrong-kind identified sources fail before parsing and produce zero observer calls.
+- Every Order and Trade quarantine exposes the exact source path, payload SHA-256, record kind, and zero-based record index without copying source bytes or reparsing in Python.
+- Identified and fixture-only APIs produce identical replay/profile evidence for the same bytes.
+- Manifest byte/count/residue/jiffy fields reconcile exactly with the completed identified report; forged existing-manifest values fail closed.
+- Full Rust format/check/test/strict-Clippy gates and the Python manifest conformance suite remain green.
+
+---
+
 ## Decision template
 
 Copy this section to add a decision. Assign the next stable ID and update both indexes.

@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-25 - Present the replay/source-identity boundary for owner decision
+
+- **Changed:** Added proposed DEC-2026-010 with a two-stage source-identity and manifest-assembly design, alternatives, failure analysis, and activation tests; cross-linked the README, Phase 1 checklist, immediate actions, and compact decision log. No replay/application code changed.
+- **Why:** Directly requiring `ManifestV1` before replay is circular during first ingestion because parse counts, residue, and jiffy bounds are produced by replay. Post-hoc manifest annotation can instead bind the wrong source after processing. The proposed additive identity boundary resolves that tension without forcing low-level fixtures to fabricate delivery metadata.
+- **Validation:** Repository searches and diff review confirm the proposal preserves DEC-2026-009 record identity, the DEC-2026-008 Rust/Python boundary, byte-only fixture APIs, and the canonical-event deferral. The full and compact logs, checklist header/item/actions, and README consistently mark DEC-2026-010 Proposed and require owner activation before code changes. Markdown diff checks pass.
+- **Related:** DEC-2026-008; active DEC-2026-009; proposed DEC-2026-010; Phase 1 source identity, quarantine provenance, and manifest reconciliation gates.
+- **Follow-up:** Owner accepts or amends DEC-2026-010. If activated, implement it test-first and commit the identified-source boundary as a separate checkpoint.
+
+---
+
 ## 2026-10-25 - Add independent Python manifest-v1 conformance
 
 - **Changed:** Added a Python 3.9-compatible, typed, immutable manifest-v1 reader using the explicit Draft 2020-12 schema plus fail-closed cross-field validation; strict UTF-8/JSON/duplicate-key handling; exact Rust golden-byte reproduction; and payload-based record identity. Pinned the six-package Python dependency closure. The independent comparison also tightened the public schema to Rust `u64`/`u32` ranges and made Rust manifest deserialization reject uppercase digest text, matching the schema's canonical lowercase contract.
