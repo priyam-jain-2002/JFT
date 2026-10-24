@@ -14,3 +14,7 @@ Store project research notes and evidence here. Each research note should identi
 Do not copy or modify synced material in `sources/`. Link to it or describe the derived insight instead.
 
 Current priority questions are licensing/derived-use rights, Trim-versus-Full reconstructability, same-jiffy ordering, order/trade quantity semantics, and evidence-backed execution assumptions. A research note may close a question only when it records the source, version/date, method, result, limitations, and decision impact.
+
+## Current evidence notes
+
+- [Phase 2 primary research evidence](PHASE2_PRIMARY_EVIDENCE.md) verifies RP-001 through RP-005, separates reported external results from JFT hypotheses, and leaves Phase 3 execution/fill evidence open.

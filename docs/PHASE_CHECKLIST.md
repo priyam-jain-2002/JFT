@@ -213,12 +213,12 @@ Before operational live-data use, capital deployment, redistribution, or externa
 
 | ID | Candidate | Question and JFT reproduction | Status/limitation |
 |---|---|---|---|
-| RP-001 | Cont, Kukanov, Stoikov, *The Price Impact of Order Book Events* | Reproduce OFI sign, monotonicity, and depth interaction on NSE CM | External-market evidence does not establish NSE net alpha |
-| RP-002 | Gould and Bonart, *Queue Imbalance as a One-Tick-Ahead Price Predictor in a Limit Order Book* | Compare calibrated imbalance logistic model with naive baselines | Queue state/event order must first be reliable |
-| RP-003 | Cartea, Donnelly, Jaimungal, order-book imbalance/trading signals | Test prediction and a separate cost-aware policy | Exact citation/version to verify in Phase 0 |
-| RP-004 | Zhang, Zohren, Roberts, *DeepLOB* | Compact CNN/TCN reproduction after Phase 3 | Labels/markets differ; accuracy is insufficient |
-| RP-005 | Purging, embargo, walk-forward, multiple-testing literature | Define split/leakage controls | Primary citations to complete in Phase 0 |
-| RP-006 | Market-impact and queue/fill literature | Calibrate pessimistic/base/optimistic execution cases | Evidence gap before capital |
+| RP-001 | Cont, Kukanov, Stoikov, *The Price Impact of Order Book Events* | Reproduce OFI sign, monotonicity, and depth interaction on NSE CM | [Primary citation/scope verified](research/PHASE2_PRIMARY_EVIDENCE.md#rp-001); external-market evidence does not establish NSE net alpha |
+| RP-002 | Gould and Bonart, *Queue Imbalance as a One-Tick-Ahead Price Predictor in a Limit Order Book* | Compare calibrated imbalance logistic model with naive baselines | [Primary citation/scope verified](research/PHASE2_PRIMARY_EVIDENCE.md#rp-002); queue state/event order must first be reliable |
+| RP-003 | Cartea, Donnelly, Jaimungal, *Enhancing Trading Strategies with Order Book Signals* | Test prediction and a separate cost-aware policy | [Primary citation/scope verified](research/PHASE2_PRIMARY_EVIDENCE.md#rp-003); model-based policy result is not NSE execution evidence |
+| RP-004 | Zhang, Zohren, Roberts, *DeepLOB* | Compact CNN/TCN reproduction after Phase 3 | [Primary citation/scope verified](research/PHASE2_PRIMARY_EVIDENCE.md#rp-004); labels/markets differ and accuracy is insufficient |
+| RP-005 | White Reality Check; Hansen SPA; Bailey et al. PBO; purging/embargo methods | Define split, leakage, trial-ledger, and multiple-testing controls | [Primary citation/scope verified](research/PHASE2_PRIMARY_EVIDENCE.md#rp-005); exact JFT geometry/thresholds wait for label and sample evidence |
+| RP-006 | Market-impact and queue/fill literature | Calibrate pessimistic/base/optimistic execution cases | Open Phase 3 evidence gap before simulator assumptions or capital |
 
 Each completed entry must add a citation, stable source, publication status, dataset/period, method, result, limitations, relevance, reproduction plan, and JFT outcome.
 
@@ -488,7 +488,7 @@ No fill occurs because a bar touched a price. Marketable orders consume observab
 - [ ] Acquire matched Trim/Full days when available and justified; quantify replay/field value before choosing Full.
 - [ ] Inventory real subscribed dates, symbols/series, streams, sizes, counts, jiffy ranges, missing files, schema eras, corporate actions, and reference data.
 - [ ] Qualify one production delivery design: SFTP SSH-key/static-IP or dedicated Mumbai S3 ingestion bucket, including least privilege, encryption, retention, deletion, integrity, and audit logging.
-- [ ] Verify the research-paper citations needed for Phase 2; defer patent/FTO work until a product or filing decision makes it relevant.
+- [x] Verify the primary citations needed to motivate Phase 2 features/baselines and its leakage/multiple-testing controls; [RP-001 through RP-005 evidence](research/PHASE2_PRIMARY_EVIDENCE.md) is recorded without claiming NSE replication. RP-006 execution/fill evidence remains a Phase 3 task; patent/FTO work remains deferred until a product or filing decision makes it relevant.
 - [ ] Approve the Phase 1 data/compute budget and research-spend stop-loss.
 - [x] Authorize Phase 1 fixture-first engineering in the owner-controlled local environment; no live trading, capital deployment, redistribution, or external product activation is implied.
 

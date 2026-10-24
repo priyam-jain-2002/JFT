@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-25 - Verify the Phase 2 primary research evidence
+
+- **Changed:** Added one supporting evidence note for RP-001 through RP-005; replaced the registry's incomplete candidate labels with exact citations and links; recorded each source's dataset/period, method, reported result, limitations, bounded JFT reproduction, and outcome; and marked only the Phase 2 citation-verification checklist item complete. RP-006 execution/fill literature remains open for Phase 3.
+- **Why:** External microstructure results are useful hypothesis generators but are not evidence of NSE alpha, feasible fills, or net profitability. The prior registry lacked exact citations for RP-003/RP-005 and did not expose the data and transfer limitations needed to prevent cargo-cult implementation.
+- **Evidence:** Publisher/author-primary records verify the five research groups and correct bibliographic identifiers, including Gould-Bonart DOI `10.1142/S2382626616500064`, Cartea-Donnelly-Jaimungal DOI `10.1080/1350486X.2018.1434009`, and DeepLOB DOI `10.1109/TSP.2019.2907260`. Local link/anchor and registry-ID checks plus Markdown diff checks pass. Current-branch Rust format/check/test/strict-Clippy gates pass with 185 default tests and two documented external-sample tests ignored; all 10 Python manifest-conformance tests, bytecode compilation, and dependency consistency pass.
+- **Scope boundary:** No feature, label, model, simulator, Rust, Python, manifest, or replay behavior changed. Phase 2 remains blocked by Phase 1 representative-data acceptance, and DEC-2026-010 remains Proposed pending owner review.
+- **Follow-up:** Obtain representative current data and owner review of DEC-2026-010. Before Phase 2, predeclare the exact feature/label information sets and validation geometry; before Phase 3, separately verify queue/fill/impact/latency and current cost evidence.
+
+---
+
 ## 2026-10-25 - Present the replay/source-identity boundary for owner decision
 
 - **Changed:** Added proposed DEC-2026-010 with a two-stage source-identity and manifest-assembly design, alternatives, failure analysis, and activation tests; cross-linked the README, Phase 1 checklist, immediate actions, and compact decision log. No replay/application code changed.
