@@ -171,6 +171,21 @@ fn rejects_unknown_schema_versions_and_unknown_json_fields() {
 }
 
 #[test]
+fn rejects_noncanonical_uppercase_digest_json() {
+    let uppercase_sha256 = String::from_utf8(GOLDEN_MANIFEST.to_vec())
+        .expect("golden UTF-8")
+        .replace(
+            "162d9991fca84f270f6bb22f8d75ae1abc8f3846e768868629d44206ae649248",
+            "162D9991FCA84F270F6BB22F8D75AE1ABC8F3846E768868629D44206AE649248",
+        );
+
+    assert!(matches!(
+        ManifestV1::from_json_bytes(uppercase_sha256.as_bytes()),
+        Err(ManifestJsonError::Json(_))
+    ));
+}
+
+#[test]
 fn rejects_invalid_dates_streams_and_forged_trigger_status() {
     for stream in [Some(0), Some(100), Some(u8::MAX)] {
         let mut manifest = valid_manifest();

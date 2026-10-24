@@ -31,6 +31,11 @@
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
     },
+    "u64": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 18446744073709551615
+    },
     "source": {
       "type": "object",
       "additionalProperties": false,
@@ -70,7 +75,7 @@
       "additionalProperties": false,
       "required": ["byte_count", "md5", "sha256"],
       "properties": {
-        "byte_count": { "type": "integer", "minimum": 0 },
+        "byte_count": { "$ref": "#/$defs/u64" },
         "md5": { "$ref": "#/$defs/md5" },
         "sha256": { "$ref": "#/$defs/sha256" }
       }
@@ -92,7 +97,7 @@
         "declared_byte_count": {
           "anyOf": [
             { "type": "null" },
-            { "type": "integer", "minimum": 0 }
+            { "$ref": "#/$defs/u64" }
           ]
         },
         "declared_md5": {
@@ -119,24 +124,28 @@
         "raw_jiffy_maximum"
       ],
       "properties": {
-        "byte_count": { "type": "integer", "minimum": 0 },
+        "byte_count": { "$ref": "#/$defs/u64" },
         "sha256": { "$ref": "#/$defs/sha256" },
-        "payload_width": { "type": "integer", "minimum": 1 },
+        "payload_width": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
         "delimiter": { "const": "lf" },
-        "framed_records": { "type": "integer", "minimum": 0 },
-        "parsed_records": { "type": "integer", "minimum": 0 },
-        "quarantined_records": { "type": "integer", "minimum": 0 },
-        "residue_bytes": { "type": "integer", "minimum": 0 },
+        "framed_records": { "$ref": "#/$defs/u64" },
+        "parsed_records": { "$ref": "#/$defs/u64" },
+        "quarantined_records": { "$ref": "#/$defs/u64" },
+        "residue_bytes": { "$ref": "#/$defs/u64" },
         "raw_jiffy_minimum": {
           "anyOf": [
             { "type": "null" },
-            { "type": "integer", "minimum": 0 }
+            { "$ref": "#/$defs/u64" }
           ]
         },
         "raw_jiffy_maximum": {
           "anyOf": [
             { "type": "null" },
-            { "type": "integer", "minimum": 0 }
+            { "$ref": "#/$defs/u64" }
           ]
         }
       }

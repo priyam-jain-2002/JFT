@@ -57,6 +57,11 @@ impl<'de> Deserialize<'de> for Sha256Digest {
         D: Deserializer<'de>,
     {
         let value = String::deserialize(deserializer)?;
+        if !is_canonical_lowercase_hex(&value) {
+            return Err(de::Error::custom(
+                "SHA-256 JSON must use canonical lowercase hexadecimal",
+            ));
+        }
         Self::from_hex(&value).map_err(de::Error::custom)
     }
 }
@@ -108,6 +113,11 @@ impl<'de> Deserialize<'de> for Md5Digest {
         D: Deserializer<'de>,
     {
         let value = String::deserialize(deserializer)?;
+        if !is_canonical_lowercase_hex(&value) {
+            return Err(de::Error::custom(
+                "MD5 JSON must use canonical lowercase hexadecimal",
+            ));
+        }
         Self::from_hex(&value).map_err(de::Error::custom)
     }
 }
@@ -178,6 +188,12 @@ fn encode_lower_hex(bytes: &[u8]) -> String {
         encoded.push(char::from(DIGITS[usize::from(byte & 0x0f)]));
     }
     encoded
+}
+
+fn is_canonical_lowercase_hex(value: &str) -> bool {
+    value
+        .bytes()
+        .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
 fn decode_lower_or_upper_hex<const N: usize>(value: &str) -> Result<[u8; N], HexDigestError> {

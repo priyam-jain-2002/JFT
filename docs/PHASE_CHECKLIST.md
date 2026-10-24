@@ -4,12 +4,12 @@
 
 This is the single execution source of truth for JFT. It combines the product brief, technical architecture, data contract, research plan, acceptance gates, kill criteria, and phase checklist for an NSE-focused short-horizon quantitative trading system. It replaces the generic lifecycle checklist; it does not authorize trading or establish that the strategy is profitable or legally permitted.
 
-- **Document status:** Governing plan; fixture-first current-Trim parser/replay and Rust manifest-v1 evidence verified, Python conformance and representative-data acceptance still open
+- **Document status:** Governing plan; fixture-first current-Trim parser/replay and cross-language manifest-v1 evidence verified, representative-data acceptance still open
 - **Current phase:** Phase 1 - deterministic parser and book reconstruction
 - **Last updated:** 2026-10-23
 - **Decision owner:** Project owner
 - **Initial market/mode:** NSE Cash Market (CM), offline research only
-- **Next gate:** Independently verify manifest v1 from Python while qualifying representative paired current Trim data; canonical event rows remain deferred
+- **Next gate:** Attach manifest-v1 identity to existing quarantine/evidence outputs while qualifying representative paired current Trim data; canonical event rows remain deferred
 - **External dependency (not repository scope):** Legal/compliance review still needs to be completed before operational live, capital, or external-product activation; it does not block offline repository engineering
 - **Related:** [full decisions](decisions/DECISION_LOG.md), [compact decisions](decisions/COMPACT_DECISION_LOG.md), [research index](research/README.md), [change ledger](CHANGE_LEDGER.md)
 
@@ -543,8 +543,8 @@ Orders + Trades -> integrity -> parser -> raw-event validation -> jiffy validati
 - [ ] Freeze compressed inputs; verify trigger MD5/size, compute SHA-256, write manifest.
 - [x] Discover all parts/streams rather than hard-code a count; reject missing/duplicate parts. This is enforced by the homogeneous stream-set and deterministic inventory discovery gates above.
 - [x] Implement date/version-aware Rust wire-layout descriptors for Trim 68/82 and required Full 87/91 Order plus 100/101/103 Trade variants, with explicit source-date dispatch across every documented transition. These descriptors define byte boundaries only; they are not the language-neutral canonical schema.
-- [x] Implement the active DEC-2026-009 language-neutral manifest schema, compatibility policy, deterministic record identity, and Rust golden conformance tests. Nine focused tests prove byte-identical output, round trips, schema discriminators, every trigger status, strict paths/dates/streams/versions/unknown fields, count/byte/jiffy accounting, bounded record identity, and rename/recompression stability.
-- [ ] Add an independent Python manifest reader and JSON-Schema conformance suite against the Rust golden bytes; it must reject unknown major versions/fields and must not parse raw NSE Order/Trade records.
+- [x] Implement the active DEC-2026-009 language-neutral manifest schema, compatibility policy, deterministic record identity, and Rust golden conformance tests. Ten focused tests prove byte-identical output, round trips, schema discriminators, every trigger status, strict paths/dates/streams/versions/unknown fields/canonical digest text, count/byte/jiffy accounting, bounded record identity, and rename/recompression stability.
+- [x] Add an independent Python manifest reader and JSON-Schema conformance suite against the Rust golden bytes. Ten Python 3.9 tests prove exact round trips, immutable typed values, strict JSON/duplicate-key rejection, schema/version/path/digest/integer bounds, real-date and cross-field trigger/count/byte/jiffy validation, and stable payload-based identity; Python reads no raw NSE Order/Trade records.
 - [ ] Freeze canonical Order/Trade event schemas and wire-to-canonical mappings only after representative current data validates the semantics; DEC-2026-009 deliberately does not authorize this shape.
 - [ ] Resolve signed numeric encoding and Full Trigger/Limit/flag conditional rules before Full semantic parsing; do not promote the current unsigned fixture behavior into a cross-era canonical contract without evidence.
 - [x] Preserve every quarantined Trim record's exact raw bytes including padding, validated stream member, zero-based record index, byte offset, optional independently valid raw jiffy, failure field, and typed reason. Exhaustive single-byte mutation tests prove rejected bytes are retained exactly.
@@ -829,7 +829,7 @@ Stop the engineering project or alpha path if, after a predeclared remediation a
 1. Obtain the approved data/compute budget and representative paired current CM Trim Order/Trade data plus triggers across ordinary, volatile, Pre-Open, Regular Market, and Closing Auction conditions. Do not use synthetic or legacy files as a substitute for this gate.
 2. Run the implemented content-signature, inventory, framing, parser, raw-jiffy, independent replay, trade-candidate, session-count, cross-session dossier, route, and observation-taxonomy reports across every validated member. Reconcile all counts, residue, quantity, notional, and source coverage before interpreting anomalies.
 3. Use representative evidence to resolve stream/equal-jiffy ordering, session reset/carry, modify/cancel quantity meaning, trade-driven quantity semantics, signed encoding, Full Trigger/Limit conditional rules, and the 19,800-second jiffy-epoch discrepancy. Preserve ambiguity and request vendor clarification where evidence cannot decide.
-4. Complete active [DEC-2026-009](decisions/DECISION_LOG.md#dec-2026-009) by independently validating the implemented Rust manifest-v1 golden bytes/schema from Python. Keep canonical event rows deferred as approved, and separately add production trigger-file parsing/manifest persistence only when the disk-input path is designed.
+4. Attach the now cross-language-conformant manifest-v1 identity to existing quarantine/evidence outputs. Keep canonical event rows deferred as approved, and separately add production trigger-file parsing/manifest persistence only when the disk-input path is designed.
 5. After ordering and canonical event semantics are evidenced, approve that separate event-schema decision, then implement fallible canonical transition output, deterministic checkpoint/final-state hashes, and the Python canonical-data reader/conformance suite. Python must not read raw NSE Order/Trade bytes or reproduce the authoritative book.
 6. Use the qualified public legacy sample only for legacy-width framing/field-domain evidence and incomplete-replay tests; do not treat it as representative current-market or delivery evidence.
 7. Keep legal/compliance as an external “needs to be done” marker; it must not block offline repository engineering, and the repository must not claim operational clearance.

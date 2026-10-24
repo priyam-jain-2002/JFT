@@ -2,6 +2,16 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-25 - Add independent Python manifest-v1 conformance
+
+- **Changed:** Added a Python 3.9-compatible, typed, immutable manifest-v1 reader using the explicit Draft 2020-12 schema plus fail-closed cross-field validation; strict UTF-8/JSON/duplicate-key handling; exact Rust golden-byte reproduction; and payload-based record identity. Pinned the six-package Python dependency closure. The independent comparison also tightened the public schema to Rust `u64`/`u32` ranges and made Rust manifest deserialization reject uppercase digest text, matching the schema's canonical lowercase contract.
+- **Why:** A language-neutral boundary is not proved by Rust testing its own output. Independent Python decoding exposed two real cross-language inconsistencies before canonical datasets depend on the contract, while retaining the established rule that Python never parses raw NSE records or maintains an authoritative book.
+- **Validation:** Ten Python conformance tests validate the Rust golden file against the actual schema, reproduce its bytes exactly, prove immutable typed values and all five trigger states, reject duplicate keys/unknown versions/fields/unsafe paths/noncanonical digests/out-of-range integers/impossible dates, enforce count/byte/jiffy invariants, and preserve identity across rename/recompression. Strict Python-3.9 type checking covers all four source modules; bytecode compilation and dependency consistency pass. All 185 default Rust tests, locked format/compile/test/strict-Clippy checks, and diff checks pass. RustSec loaded 1,351 advisories and found none in the unchanged 23-package lockfile; `pip-audit` found no known vulnerability in the six pinned Python packages, whose declared licenses are MIT or PSF-2.0.
+- **Related:** DEC-2026-008 Rust/Python boundary; active DEC-2026-009; Phase 1 manifest, identity, and canonical-consumer gates.
+- **Follow-up:** Attach manifest identity to existing Rust quarantine/evidence outputs without freezing canonical event rows. Production trigger-file parsing and disk persistence remain separate from this in-memory conformance checkpoint.
+
+---
+
 ## 2026-10-23 - Implement deterministic Rust manifest v1
 
 - **Changed:** Added explicit manifest-v1 Rust types and `schemas/nse_cm/manifest.schema.json`; deterministic compact JSON with a terminal LF; strict schema ID/major, unknown-field, logical-path, date, stream, trigger-status, record/byte-accounting, and raw-jiffy-bound validation; compressed MD5/SHA-256 plus decompressed SHA-256 evidence; processing identity; and payload-based bounded record identity. Added a synthetic byte-for-byte golden manifest. No canonical market-event fields, UTC conversion, cross-stream ordering, or Trade quantity semantics were introduced.
