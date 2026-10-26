@@ -403,12 +403,12 @@ The owner activated items 1-6 and the amended item 7 on 2026-10-23. This authori
 ## DEC-2026-010 - Bind replay sources to manifest identity without making replay depend on a completed manifest
 
 - **Date:** 2026-10-25
-- **Status:** Proposed - owner decision required before implementation
+- **Status:** Active - approved and implemented
 - **Owner:** Project owner
 - **Scope:** Rust replay input, manifest assembly, quarantine provenance, deterministic identity
 - **Supersedes:** —
 - **Superseded by:** —
-- **Review trigger:** Owner approval/amendment; representative ingestion shows the source identity is insufficient; or the canonical-output decision changes provenance requirements.
+- **Review trigger:** Representative ingestion shows the source identity is insufficient; or the canonical-output decision changes provenance requirements.
 
 ### Context
 
@@ -426,7 +426,7 @@ The boundary must therefore satisfy all of these constraints:
 - keep low-level byte-only parser tests simple and keep Python away from raw NSE bytes;
 - make no decision about canonical event fields, UTC, cross-stream order, or Trade quantity semantics.
 
-### Proposed decision
+### Decision
 
 1. Add a validated borrowed `CmSourceIdentity` containing logical source path, decompressed payload SHA-256, and record kind. Its constructor validates the logical path and computes SHA-256 from the supplied decompressed bytes; callers cannot provide an unchecked digest.
 2. Add `IdentifiedCmStreamSource<'a>` containing `member`, borrowed decompressed `source`, and its `CmSourceIdentity`. Keep the current byte-only `CmStreamSource` for isolated parser/profile fixtures, but require identified sources at the composed production/evidence boundary.
@@ -434,6 +434,8 @@ The boundary must therefore satisfy all of these constraints:
 4. Store one source identity on each per-stream replay/profile result. Derive `RecordIdentity` lazily for quarantines and other located evidence from that identity plus the existing zero-based coordinate. Do not copy the path or digest into every record structure.
 5. Build `ManifestV1` after replay from the precomputed source identity plus reconciled byte/count/jiffy evidence and caller-supplied compressed/trigger/processing evidence. If consuming an existing manifest, verify its source identity and all derived metrics against the completed report before accepting it.
 6. Introduce the identified API additively and prove parity with the existing fixture-only byte APIs before considering migration or removal. This decision does not authorize disk I/O, decompression, canonical event serialization, or a new Python raw-data path.
+
+The owner activated this decision on 2026-10-25. The implemented Rust boundary validates logical filename metadata, delivery/member coverage, and record kind before parsing; stores one computed identity per stream; derives quarantine record identities lazily; and assembles or exactly verifies manifest v1 from completed replay evidence. The byte-only APIs remain available for fixtures. No Python raw parser, disk input, decompressor, canonical event schema, or cross-stream ordering policy was added.
 
 ### Alternatives considered
 
@@ -452,9 +454,9 @@ The boundary must therefore satisfy all of these constraints:
 - **Likely failure:** additive raw and identified APIs drift. **Control:** parity tests compare complete reports for identical bytes; byte-only APIs remain explicitly fixture-only.
 - **Trade-off:** one SHA-256 pass occurs before parsing and the additive API temporarily increases surface area. This cost buys fail-closed identity binding without creating a first-ingestion cycle.
 
-### Validation required before and after activation
+### Activation evidence and continuing validation
 
-- Owner accepts or amends this decision; Proposed status authorizes documentation only.
+- Owner approval was recorded before implementation.
 - Known source bytes produce the independently expected SHA-256; a one-byte mutation changes every derived record identity.
 - Rename changes logical-file provenance but not payload-based record identities; recompression remains irrelevant after decompression.
 - Missing/duplicate/wrong-member and wrong-kind identified sources fail before parsing and produce zero observer calls.

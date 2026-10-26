@@ -5,13 +5,15 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    CmFilePrefix, CmProduct, CmRecordKind, Md5Digest, RecordIdentity, Sha256Digest, md5_digest,
-    sha256_digest,
+    CmFilePrefix, CmProduct, CmRecordKind, Md5Digest, RecordIdentity, Sha256Digest,
+    is_valid_logical_path, md5_digest, sha256_digest,
 };
 use crate::layouts::{SourceDate, SourceDateError};
 
 pub const MANIFEST_SCHEMA_ID: &str = "jft.nse_cm.manifest";
 pub const MANIFEST_SCHEMA_MAJOR: u32 = 1;
+pub const TRIM_ORDER_LAYOUT_ID: &str = "nse_cm_trim_v1_19_order_68";
+pub const TRIM_TRADE_LAYOUT_ID: &str = "nse_cm_trim_v1_19_trade_82";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -222,7 +224,9 @@ impl ManifestV1 {
                 actual: self.schema_major,
             });
         }
-        validate_logical_path(&self.source.logical_path)?;
+        if !is_valid_logical_path(&self.source.logical_path) {
+            return Err(ManifestValidationError::InvalidLogicalPath);
+        }
         self.source.source_date.to_source_date()?;
         if matches!(self.source.stream, Some(0 | 100..=u8::MAX)) {
             return Err(ManifestValidationError::InvalidStream);
@@ -344,19 +348,6 @@ fn parse_source_date(value: &str) -> Result<SourceDate, ManifestValidationError>
         .parse::<u8>()
         .map_err(|_| ManifestValidationError::InvalidSourceDate)?;
     SourceDate::new(year, month, day).map_err(ManifestValidationError::InvalidSourceDateValue)
-}
-
-fn validate_logical_path(value: &str) -> Result<(), ManifestValidationError> {
-    if value.is_empty()
-        || value.starts_with('/')
-        || value.contains('\\')
-        || value
-            .split('/')
-            .any(|component| component.is_empty() || component == "." || component == "..")
-    {
-        return Err(ManifestValidationError::InvalidLogicalPath);
-    }
-    Ok(())
 }
 
 fn trigger_status(

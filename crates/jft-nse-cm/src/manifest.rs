@@ -179,6 +179,81 @@ impl RecordIdentity {
     }
 }
 
+/// Identity computed from the exact decompressed bytes supplied to replay.
+///
+/// Construction is intentionally the only public way to create this value so
+/// a caller cannot pair an unchecked digest with different payload bytes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CmSourceIdentity<'a> {
+    logical_path: &'a str,
+    decompressed_payload_sha256: Sha256Digest,
+    record_kind: CmRecordKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CmSourceIdentityError {
+    InvalidLogicalPath,
+}
+
+impl fmt::Display for CmSourceIdentityError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidLogicalPath => formatter.write_str("invalid logical source path"),
+        }
+    }
+}
+
+impl std::error::Error for CmSourceIdentityError {}
+
+impl<'a> CmSourceIdentity<'a> {
+    pub fn from_decompressed_bytes(
+        logical_path: &'a str,
+        record_kind: CmRecordKind,
+        decompressed_payload: &[u8],
+    ) -> Result<Self, CmSourceIdentityError> {
+        if !is_valid_logical_path(logical_path) {
+            return Err(CmSourceIdentityError::InvalidLogicalPath);
+        }
+
+        Ok(Self {
+            logical_path,
+            decompressed_payload_sha256: sha256_digest(decompressed_payload),
+            record_kind,
+        })
+    }
+
+    #[must_use]
+    pub const fn logical_path(&self) -> &'a str {
+        self.logical_path
+    }
+
+    #[must_use]
+    pub const fn decompressed_payload_sha256(&self) -> Sha256Digest {
+        self.decompressed_payload_sha256
+    }
+
+    #[must_use]
+    pub const fn record_kind(&self) -> CmRecordKind {
+        self.record_kind
+    }
+
+    #[must_use]
+    pub fn record_identity(&self, zero_based_record_index: usize) -> Option<RecordIdentity> {
+        u64::try_from(zero_based_record_index).ok().map(|index| {
+            RecordIdentity::new(self.decompressed_payload_sha256, self.record_kind, index)
+        })
+    }
+}
+
+pub(crate) fn is_valid_logical_path(value: &str) -> bool {
+    !value.is_empty()
+        && !value.starts_with('/')
+        && !value.contains('\\')
+        && value
+            .split('/')
+            .all(|component| !component.is_empty() && component != "." && component != "..")
+}
+
 fn encode_lower_hex(bytes: &[u8]) -> String {
     const DIGITS: &[u8; 16] = b"0123456789abcdef";
 

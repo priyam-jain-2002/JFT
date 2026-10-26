@@ -14,7 +14,15 @@ use crate::layouts::{
     full_cm_layout_for_date,
 };
 use crate::lifecycle::{LifecycleAnomaly, LifecycleTransition, OrderKey, OrderLifecycle};
-use crate::manifest::{CmFilePrefix, CmPairedStreamSet, CmProduct, CmRecordKind};
+use crate::manifest::v1::{
+    CompressedIntegrity, ManifestSource, ManifestSourceDate, ManifestV1, ManifestValidationError,
+    PayloadIntegrity, ProcessingIdentity, RecordDelimiter, TRIM_ORDER_LAYOUT_ID,
+    TRIM_TRADE_LAYOUT_ID, TriggerDeclaration, TriggerEvidence,
+};
+use crate::manifest::{
+    CmFileNameError, CmFilePrefix, CmPairedStreamSet, CmProduct, CmRecordKind, CmSourceIdentity,
+    CmSourceIdentityError, RecordIdentity, parse_cm_source_file_name,
+};
 use crate::parser::{LocatedParse, parse_trim_order_source, parse_trim_trade_source};
 use crate::quarantine::{QuarantineReason, QuarantinedRecord};
 
@@ -418,9 +426,57 @@ impl JiffySourceProfile<'_> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Byte-only source for isolated fixtures and low-level profiling.
+/// Use [`IdentifiedCmStreamSource`] at composed evidence boundaries.
 pub struct CmStreamSource<'a> {
     pub member: Option<u8>,
     pub source: &'a [u8],
+}
+
+/// A replay source whose identity is computed from the exact borrowed payload.
+/// Fields are private so source bytes and digest cannot be paired independently.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IdentifiedCmStreamSource<'a> {
+    member: Option<u8>,
+    source: &'a [u8],
+    identity: CmSourceIdentity<'a>,
+}
+
+impl<'a> IdentifiedCmStreamSource<'a> {
+    pub fn new(
+        member: Option<u8>,
+        source: &'a [u8],
+        logical_path: &'a str,
+        record_kind: CmRecordKind,
+    ) -> Result<Self, CmSourceIdentityError> {
+        Ok(Self {
+            member,
+            source,
+            identity: CmSourceIdentity::from_decompressed_bytes(logical_path, record_kind, source)?,
+        })
+    }
+
+    #[must_use]
+    pub const fn member(&self) -> Option<u8> {
+        self.member
+    }
+
+    #[must_use]
+    pub const fn source(&self) -> &'a [u8] {
+        self.source
+    }
+
+    #[must_use]
+    pub const fn identity(&self) -> CmSourceIdentity<'a> {
+        self.identity
+    }
+
+    const fn as_fixture_source(self) -> CmStreamSource<'a> {
+        CmStreamSource {
+            member: self.member,
+            source: self.source,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -463,12 +519,89 @@ pub enum CmStreamSourceSetError {
         expected: Vec<Option<u8>>,
         actual: Vec<Option<u8>>,
     },
+    IdentityRecordKindMismatch {
+        member: Option<u8>,
+        expected: CmRecordKind,
+        actual: CmRecordKind,
+    },
+    LogicalPathFileName {
+        member: Option<u8>,
+        error: CmFileNameError,
+    },
+    LogicalPathIsTrigger {
+        member: Option<u8>,
+    },
+    LogicalPathPrefixMismatch {
+        member: Option<u8>,
+        expected: CmFilePrefix,
+        actual: CmFilePrefix,
+    },
+    LogicalPathProductMismatch {
+        member: Option<u8>,
+        expected: CmProduct,
+        actual: CmProduct,
+    },
+    LogicalPathRecordKindMismatch {
+        member: Option<u8>,
+        expected: CmRecordKind,
+        actual: CmRecordKind,
+    },
+    LogicalPathSourceDateMismatch {
+        member: Option<u8>,
+        expected: SourceDate,
+        actual: SourceDate,
+    },
+    LogicalPathMemberMismatch {
+        member: Option<u8>,
+        declared: Option<u8>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TrimOrderStreamReplay<'a> {
     pub member: Option<u8>,
     pub replay: TrimOrderReplay<'a>,
+    source_identity: Option<CmSourceIdentity<'a>>,
+}
+
+impl<'a> TrimOrderStreamReplay<'a> {
+    #[must_use]
+    pub const fn source_identity(&self) -> Option<CmSourceIdentity<'a>> {
+        self.source_identity
+    }
+
+    pub fn assemble_manifest_v1(
+        &self,
+        delivery: &CmPairedStreamSet,
+        completion: &ManifestCompletionEvidence<'_>,
+    ) -> Result<ManifestV1, TrimManifestError> {
+        assemble_trim_manifest_v1(
+            delivery,
+            self.member,
+            self.source_identity,
+            CmRecordKind::Orders,
+            TRIM_ORDER_LAYOUT_ID,
+            TRIM_ORDER_RECORD_LEN,
+            self.replay.source_bytes,
+            self.replay.framed_records,
+            self.replay.parsed_records,
+            self.replay.quarantines.len(),
+            self.replay
+                .framing_error
+                .map_or(0, |error| error.unconsumed_raw.len()),
+            &self.replay.jiffy_sequence,
+            completion,
+        )
+    }
+
+    pub fn verify_manifest_v1(
+        &self,
+        delivery: &CmPairedStreamSet,
+        completion: &ManifestCompletionEvidence<'_>,
+        existing: &ManifestV1,
+    ) -> Result<(), TrimManifestError> {
+        verify_trim_manifest_v1(self.assemble_manifest_v1(delivery, completion)?, existing)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -760,6 +893,47 @@ impl TradeCandidateSourceProfile<'_> {
 pub struct TradeCandidateStreamProfile<'a> {
     pub member: Option<u8>,
     pub source: TradeCandidateSourceProfile<'a>,
+    source_identity: Option<CmSourceIdentity<'a>>,
+}
+
+impl<'a> TradeCandidateStreamProfile<'a> {
+    #[must_use]
+    pub const fn source_identity(&self) -> Option<CmSourceIdentity<'a>> {
+        self.source_identity
+    }
+
+    pub fn assemble_manifest_v1(
+        &self,
+        delivery: &CmPairedStreamSet,
+        completion: &ManifestCompletionEvidence<'_>,
+    ) -> Result<ManifestV1, TrimManifestError> {
+        assemble_trim_manifest_v1(
+            delivery,
+            self.member,
+            self.source_identity,
+            CmRecordKind::Trades,
+            TRIM_TRADE_LAYOUT_ID,
+            TRIM_TRADE_RECORD_LEN,
+            self.source.source_bytes,
+            self.source.framed_records,
+            self.source.parsed_records,
+            self.source.quarantines.len(),
+            self.source
+                .framing_error
+                .map_or(0, |error| error.unconsumed_raw.len()),
+            &self.source.jiffy_sequence,
+            completion,
+        )
+    }
+
+    pub fn verify_manifest_v1(
+        &self,
+        delivery: &CmPairedStreamSet,
+        completion: &ManifestCompletionEvidence<'_>,
+        existing: &ManifestV1,
+    ) -> Result<(), TrimManifestError> {
+        verify_trim_manifest_v1(self.assemble_manifest_v1(delivery, completion)?, existing)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -861,10 +1035,55 @@ pub struct OrderTradeJiffyRangeOverlap {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct TrimQuarantineEvidence<'a> {
+pub struct TrimQuarantineEvidence<'report, 'source> {
     pub record_kind: CmRecordKind,
     pub member: Option<u8>,
-    pub located: &'a LocatedQuarantine,
+    pub source_identity: Option<&'report CmSourceIdentity<'source>>,
+    pub located: &'report LocatedQuarantine,
+}
+
+impl TrimQuarantineEvidence<'_, '_> {
+    #[must_use]
+    pub fn record_identity(&self) -> Option<RecordIdentity> {
+        self.source_identity?
+            .record_identity(self.located.coordinate.record_index)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ManifestCompletionEvidence<'a> {
+    pub compressed_bytes: &'a [u8],
+    pub trigger_declaration: Option<TriggerDeclaration>,
+    pub processing: ProcessingIdentity,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TrimManifestCountField {
+    PayloadWidth,
+    SourceBytes,
+    FramedRecords,
+    ParsedRecords,
+    QuarantinedRecords,
+    ResidueBytes,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TrimManifestError {
+    MissingSourceIdentity {
+        record_kind: CmRecordKind,
+        member: Option<u8>,
+    },
+    SourceSet(CmStreamSourceSetError),
+    MemberNotInDelivery {
+        record_kind: CmRecordKind,
+        member: Option<u8>,
+    },
+    CountOutOfRange {
+        field: TrimManifestCountField,
+        value: usize,
+    },
+    Validation(ManifestValidationError),
+    ExistingManifestMismatch,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1084,7 +1303,7 @@ impl TrimOrderTradeEvidence<'_> {
     /// and source-coordinate order. The enclosing report retains delivery
     /// identity; this view adds record kind and stream without copying raw data.
     #[must_use]
-    pub fn quarantine_evidence(&self) -> Vec<TrimQuarantineEvidence<'_>> {
+    pub fn quarantine_evidence(&self) -> Vec<TrimQuarantineEvidence<'_, '_>> {
         let mut evidence = Vec::new();
 
         for stream in &self.orders.streams {
@@ -1092,6 +1311,7 @@ impl TrimOrderTradeEvidence<'_> {
                 evidence.push(TrimQuarantineEvidence {
                     record_kind: CmRecordKind::Orders,
                     member: stream.member,
+                    source_identity: stream.source_identity.as_ref(),
                     located,
                 });
             }
@@ -1101,6 +1321,7 @@ impl TrimOrderTradeEvidence<'_> {
                 evidence.push(TrimQuarantineEvidence {
                     record_kind: CmRecordKind::Trades,
                     member: stream.member,
+                    source_identity: stream.source_identity.as_ref(),
                     located,
                 });
             }
@@ -1903,6 +2124,7 @@ pub fn profile_trim_trade_candidate_stream_set_with_observer<'a>(
         streams.push(TradeCandidateStreamProfile {
             member: stream.member,
             source,
+            source_identity: None,
         });
     }
 
@@ -1925,6 +2147,45 @@ pub fn profile_trim_trade_candidate_stream_set_with_observer<'a>(
         combined_value_summary,
         combined_session_counts,
     })
+}
+
+pub fn profile_identified_trim_trade_candidate_stream_set<'a>(
+    orders: &TrimOrderStreamSetReplay<'_>,
+    trade_delivery: &CmPairedStreamSet,
+    trade_sources: &[IdentifiedCmStreamSource<'a>],
+) -> Result<TradeCandidateStreamSetProfile<'a>, TradeCandidateStreamSetError> {
+    profile_identified_trim_trade_candidate_stream_set_with_observer(
+        orders,
+        trade_delivery,
+        trade_sources,
+        |_| {},
+    )
+}
+
+pub fn profile_identified_trim_trade_candidate_stream_set_with_observer<'a>(
+    orders: &TrimOrderStreamSetReplay<'_>,
+    trade_delivery: &CmPairedStreamSet,
+    trade_sources: &[IdentifiedCmStreamSource<'a>],
+    observe: impl FnMut(LocatedTradeCandidateEvidence),
+) -> Result<TradeCandidateStreamSetProfile<'a>, TradeCandidateStreamSetError> {
+    let ordered_sources =
+        ordered_identified_trim_stream_sources(trade_delivery, trade_sources, CmRecordKind::Trades)
+            .map_err(TradeCandidateStreamSetError::TradeSourceSet)?;
+    let fixture_sources = ordered_sources
+        .iter()
+        .copied()
+        .map(IdentifiedCmStreamSource::as_fixture_source)
+        .collect::<Vec<_>>();
+    let mut profile = profile_trim_trade_candidate_stream_set_with_observer(
+        orders,
+        trade_delivery,
+        &fixture_sources,
+        observe,
+    )?;
+    for (stream, identified) in profile.streams.iter_mut().zip(ordered_sources) {
+        stream.source_identity = Some(identified.identity);
+    }
+    Ok(profile)
 }
 
 pub fn profile_trim_order_trade_evidence<'a>(
@@ -1967,6 +2228,79 @@ pub fn profile_trim_order_trade_evidence_with_trade_observer<'a>(
         order_summary,
         trades,
     })
+}
+
+pub fn profile_identified_trim_order_trade_evidence<'a>(
+    order_delivery: &CmPairedStreamSet,
+    order_sources: &[IdentifiedCmStreamSource<'a>],
+    trade_delivery: &CmPairedStreamSet,
+    trade_sources: &[IdentifiedCmStreamSource<'a>],
+) -> Result<TrimOrderTradeEvidence<'a>, TrimOrderTradeEvidenceError> {
+    profile_identified_trim_order_trade_evidence_with_trade_observer(
+        order_delivery,
+        order_sources,
+        trade_delivery,
+        trade_sources,
+        |_| {},
+    )
+}
+
+/// Validates all delivery and source identities before parsing either stream
+/// or invoking the trade observer.
+pub fn profile_identified_trim_order_trade_evidence_with_trade_observer<'a>(
+    order_delivery: &CmPairedStreamSet,
+    order_sources: &[IdentifiedCmStreamSource<'a>],
+    trade_delivery: &CmPairedStreamSet,
+    trade_sources: &[IdentifiedCmStreamSource<'a>],
+    observe_trade: impl FnMut(LocatedTradeCandidateEvidence),
+) -> Result<TrimOrderTradeEvidence<'a>, TrimOrderTradeEvidenceError> {
+    let ordered_orders =
+        ordered_identified_trim_stream_sources(order_delivery, order_sources, CmRecordKind::Orders)
+            .map_err(TrimOrderTradeEvidenceError::OrderReplay)?;
+    let ordered_trades =
+        ordered_identified_trim_stream_sources(trade_delivery, trade_sources, CmRecordKind::Trades)
+            .map_err(|error| {
+                TrimOrderTradeEvidenceError::TradeProfile(
+                    TradeCandidateStreamSetError::TradeSourceSet(error),
+                )
+            })?;
+    if order_delivery.prefix != trade_delivery.prefix
+        || order_delivery.key.source_date != trade_delivery.key.source_date
+    {
+        return Err(TrimOrderTradeEvidenceError::TradeProfile(
+            TradeCandidateStreamSetError::OrderTradeDeliveryMismatch {
+                order_prefix: order_delivery.prefix,
+                trade_prefix: trade_delivery.prefix,
+                order_source_date: order_delivery.key.source_date,
+                trade_source_date: trade_delivery.key.source_date,
+            },
+        ));
+    }
+
+    let fixture_orders = ordered_orders
+        .iter()
+        .copied()
+        .map(IdentifiedCmStreamSource::as_fixture_source)
+        .collect::<Vec<_>>();
+    let fixture_trades = ordered_trades
+        .iter()
+        .copied()
+        .map(IdentifiedCmStreamSource::as_fixture_source)
+        .collect::<Vec<_>>();
+    let mut evidence = profile_trim_order_trade_evidence_with_trade_observer(
+        order_delivery,
+        &fixture_orders,
+        trade_delivery,
+        &fixture_trades,
+        observe_trade,
+    )?;
+    for (stream, identified) in evidence.orders.streams.iter_mut().zip(ordered_orders) {
+        stream.source_identity = Some(identified.identity);
+    }
+    for (stream, identified) in evidence.trades.streams.iter_mut().zip(ordered_trades) {
+        stream.source_identity = Some(identified.identity);
+    }
+    Ok(evidence)
 }
 
 fn profile_trim_trade_candidate_source<'a>(
@@ -2110,6 +2444,7 @@ pub fn replay_trim_order_stream_set_with_observer<'a>(
         streams.push(TrimOrderStreamReplay {
             member: stream.member,
             replay,
+            source_identity: None,
         });
     }
 
@@ -2117,6 +2452,33 @@ pub fn replay_trim_order_stream_set_with_observer<'a>(
         delivery: delivery.clone(),
         streams,
     })
+}
+
+pub fn replay_identified_trim_order_stream_set<'a>(
+    delivery: &CmPairedStreamSet,
+    sources: &[IdentifiedCmStreamSource<'a>],
+) -> Result<TrimOrderStreamSetReplay<'a>, CmStreamSourceSetError> {
+    replay_identified_trim_order_stream_set_with_observer(delivery, sources, |_| {})
+}
+
+pub fn replay_identified_trim_order_stream_set_with_observer<'a>(
+    delivery: &CmPairedStreamSet,
+    sources: &[IdentifiedCmStreamSource<'a>],
+    observe: impl FnMut(LocatedStreamLifecycleTransition),
+) -> Result<TrimOrderStreamSetReplay<'a>, CmStreamSourceSetError> {
+    let ordered_sources =
+        ordered_identified_trim_stream_sources(delivery, sources, CmRecordKind::Orders)?;
+    let fixture_sources = ordered_sources
+        .iter()
+        .copied()
+        .map(IdentifiedCmStreamSource::as_fixture_source)
+        .collect::<Vec<_>>();
+    let mut replay =
+        replay_trim_order_stream_set_with_observer(delivery, &fixture_sources, observe)?;
+    for (stream, identified) in replay.streams.iter_mut().zip(ordered_sources) {
+        stream.source_identity = Some(identified.identity);
+    }
+    Ok(replay)
 }
 
 fn ordered_trim_stream_sources<'a>(
@@ -2149,6 +2511,198 @@ fn ordered_trim_stream_sources<'a>(
         });
     }
     Ok(ordered_sources)
+}
+
+fn ordered_identified_trim_stream_sources<'a>(
+    delivery: &CmPairedStreamSet,
+    sources: &[IdentifiedCmStreamSource<'a>],
+    expected_kind: CmRecordKind,
+) -> Result<Vec<IdentifiedCmStreamSource<'a>>, CmStreamSourceSetError> {
+    validate_trim_delivery(delivery, expected_kind)?;
+
+    let mut ordered_sources = sources.to_vec();
+    ordered_sources.sort_by_key(|source| source.member);
+    let actual = ordered_sources
+        .iter()
+        .map(|source| source.member)
+        .collect::<Vec<_>>();
+    if actual != delivery.members {
+        return Err(CmStreamSourceSetError::StreamMembersMismatch {
+            expected: delivery.members.clone(),
+            actual,
+        });
+    }
+    for source in &ordered_sources {
+        validate_identified_source_metadata(
+            delivery,
+            source.member,
+            source.identity,
+            expected_kind,
+        )?;
+    }
+    Ok(ordered_sources)
+}
+
+fn validate_trim_delivery(
+    delivery: &CmPairedStreamSet,
+    expected_kind: CmRecordKind,
+) -> Result<(), CmStreamSourceSetError> {
+    if delivery.key.product != CmProduct::Trim {
+        return Err(CmStreamSourceSetError::ExpectedTrim {
+            actual: delivery.key.product,
+        });
+    }
+    if delivery.key.record_kind != expected_kind {
+        return Err(CmStreamSourceSetError::RecordKindMismatch {
+            expected: expected_kind,
+            actual: delivery.key.record_kind,
+        });
+    }
+    Ok(())
+}
+
+fn validate_identified_source_metadata(
+    delivery: &CmPairedStreamSet,
+    member: Option<u8>,
+    identity: CmSourceIdentity<'_>,
+    expected_kind: CmRecordKind,
+) -> Result<(), CmStreamSourceSetError> {
+    validate_trim_delivery(delivery, expected_kind)?;
+    if identity.record_kind() != expected_kind {
+        return Err(CmStreamSourceSetError::IdentityRecordKindMismatch {
+            member,
+            expected: expected_kind,
+            actual: identity.record_kind(),
+        });
+    }
+    let file_name = identity
+        .logical_path()
+        .rsplit('/')
+        .next()
+        .expect("validated logical path has a final component");
+    let parsed = parse_cm_source_file_name(file_name)
+        .map_err(|error| CmStreamSourceSetError::LogicalPathFileName { member, error })?;
+    if parsed.is_trigger {
+        return Err(CmStreamSourceSetError::LogicalPathIsTrigger { member });
+    }
+    if parsed.prefix != delivery.prefix {
+        return Err(CmStreamSourceSetError::LogicalPathPrefixMismatch {
+            member,
+            expected: delivery.prefix,
+            actual: parsed.prefix,
+        });
+    }
+    if parsed.product != delivery.key.product {
+        return Err(CmStreamSourceSetError::LogicalPathProductMismatch {
+            member,
+            expected: delivery.key.product,
+            actual: parsed.product,
+        });
+    }
+    if parsed.record_kind != expected_kind {
+        return Err(CmStreamSourceSetError::LogicalPathRecordKindMismatch {
+            member,
+            expected: expected_kind,
+            actual: parsed.record_kind,
+        });
+    }
+    if parsed.source_date != delivery.key.source_date {
+        return Err(CmStreamSourceSetError::LogicalPathSourceDateMismatch {
+            member,
+            expected: delivery.key.source_date,
+            actual: parsed.source_date,
+        });
+    }
+    if parsed.stream != member {
+        return Err(CmStreamSourceSetError::LogicalPathMemberMismatch {
+            member,
+            declared: parsed.stream,
+        });
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn assemble_trim_manifest_v1(
+    delivery: &CmPairedStreamSet,
+    member: Option<u8>,
+    source_identity: Option<CmSourceIdentity<'_>>,
+    record_kind: CmRecordKind,
+    layout_id: &str,
+    payload_width: usize,
+    source_bytes: usize,
+    framed_records: usize,
+    parsed_records: usize,
+    quarantined_records: usize,
+    residue_bytes: usize,
+    jiffy_sequence: &JiffySequenceProfile,
+    completion: &ManifestCompletionEvidence<'_>,
+) -> Result<ManifestV1, TrimManifestError> {
+    let identity = source_identity.ok_or(TrimManifestError::MissingSourceIdentity {
+        record_kind,
+        member,
+    })?;
+    if !delivery.members.contains(&member) {
+        return Err(TrimManifestError::MemberNotInDelivery {
+            record_kind,
+            member,
+        });
+    }
+    validate_identified_source_metadata(delivery, member, identity, record_kind)
+        .map_err(TrimManifestError::SourceSet)?;
+
+    let to_u64 = |field, value| {
+        u64::try_from(value).map_err(|_| TrimManifestError::CountOutOfRange { field, value })
+    };
+    let payload_width =
+        u32::try_from(payload_width).map_err(|_| TrimManifestError::CountOutOfRange {
+            field: TrimManifestCountField::PayloadWidth,
+            value: payload_width,
+        })?;
+    let compressed = CompressedIntegrity::from_bytes(completion.compressed_bytes);
+    let trigger = TriggerEvidence::from_declaration(compressed, completion.trigger_declaration);
+    let manifest = ManifestV1::new(
+        ManifestSource {
+            logical_path: identity.logical_path().to_owned(),
+            prefix: delivery.prefix,
+            product: delivery.key.product,
+            record_kind,
+            source_date: ManifestSourceDate::from_source_date(delivery.key.source_date),
+            stream: member,
+            layout_id: layout_id.to_owned(),
+        },
+        compressed,
+        trigger,
+        PayloadIntegrity {
+            byte_count: to_u64(TrimManifestCountField::SourceBytes, source_bytes)?,
+            sha256: identity.decompressed_payload_sha256(),
+            payload_width,
+            delimiter: RecordDelimiter::Lf,
+            framed_records: to_u64(TrimManifestCountField::FramedRecords, framed_records)?,
+            parsed_records: to_u64(TrimManifestCountField::ParsedRecords, parsed_records)?,
+            quarantined_records: to_u64(
+                TrimManifestCountField::QuarantinedRecords,
+                quarantined_records,
+            )?,
+            residue_bytes: to_u64(TrimManifestCountField::ResidueBytes, residue_bytes)?,
+            raw_jiffy_minimum: jiffy_sequence.minimum.map(ExchangeJiffy::raw),
+            raw_jiffy_maximum: jiffy_sequence.maximum.map(ExchangeJiffy::raw),
+        },
+        completion.processing.clone(),
+    );
+    manifest.validate().map_err(TrimManifestError::Validation)?;
+    Ok(manifest)
+}
+
+fn verify_trim_manifest_v1(
+    expected: ManifestV1,
+    existing: &ManifestV1,
+) -> Result<(), TrimManifestError> {
+    existing.validate().map_err(TrimManifestError::Validation)?;
+    if &expected != existing {
+        return Err(TrimManifestError::ExistingManifestMismatch);
+    }
+    Ok(())
 }
 
 fn profile_jiffies<'a, T, const N: usize>(

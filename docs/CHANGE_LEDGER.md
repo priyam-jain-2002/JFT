@@ -2,6 +2,17 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-25 - Activate and implement replay/source identity binding
+
+- **Changed:** Activated owner-approved DEC-2026-010. Added a private-field source identity computed from the exact decompressed bytes; an additive identified Order/Trade source boundary; fail-closed logical filename, prefix, product, kind, date, stream-member, and delivery validation before parsing; one identity reference per stream; lazy quarantine record identities; and post-replay manifest-v1 assembly/exact verification from derived byte, count, residue, and raw-jiffy evidence plus caller-supplied compressed, trigger, and processing evidence. Byte-only APIs remain for fixtures.
+- **Why:** Passing a completed manifest into first ingestion is circular because replay produces manifest metrics, while attaching an unchecked manifest afterward can bind evidence to the wrong bytes. The two-stage boundary proves byte identity before parsing and derives the complete manifest only after authoritative Rust replay.
+- **Evidence:** Four new Rust integration tests prove path safety, rename stability, one-byte tamper sensitivity, zero observer calls on identity rejection, logical filename/kind rejection, identified-versus-fixture replay parity, lazy Order/Trade quarantine identities, derived manifest reconciliation, and rejection of forged processing or payload identity. Full repository validation is recorded with the implementation commit.
+- **Scope boundary:** No disk I/O, decompression, trigger-file parser, manifest persistence, canonical event rows, cross-stream ordering, UTC conversion, Trade quantity semantics, Python raw parser, or trading/application code was added. Representative current delivery qualification remains required for Phase 1 acceptance.
+- **Related:** DEC-2026-008, DEC-2026-009, active DEC-2026-010; Phase 1 source integrity and provenance gates.
+- **Follow-up:** Exercise the identified boundary on representative paired current Trim deliveries, persist manifests at the future ingestion boundary, and independently reconcile hashes and all derived metrics before accepting Phase 1.
+
+---
+
 ## 2026-10-25 - Verify the Phase 2 primary research evidence
 
 - **Changed:** Added one supporting evidence note for RP-001 through RP-005; replaced the registry's incomplete candidate labels with exact citations and links; recorded each source's dataset/period, method, reported result, limitations, bounded JFT reproduction, and outcome; and marked only the Phase 2 citation-verification checklist item complete. RP-006 execution/fill literature remains open for Phase 3.
