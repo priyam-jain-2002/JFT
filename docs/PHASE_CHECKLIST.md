@@ -6,7 +6,7 @@ This is the single execution source of truth for JFT. It combines the product br
 
 - **Document status:** Governing plan; fixture-first current-Trim parser/replay and cross-language manifest-v1 evidence verified, representative-data acceptance still open
 - **Current phase:** Phase 1 - deterministic parser and book reconstruction
-- **Last updated:** 2026-10-25
+- **Last updated:** 2026-10-27
 - **Decision owner:** Project owner
 - **Initial market/mode:** NSE Cash Market (CM), offline research only
 - **Next gate:** Qualify the active DEC-2026-010 identified-source path on representative paired current Trim deliveries; canonical event rows remain deferred
@@ -122,6 +122,8 @@ Hashes identify the exact 17-file working bundle reviewed on 2026-10-15. They do
 #### Current official acquisition channel
 
 **CONFIRMED FROM NSE DOCUMENTATION:** On 2026-10-15, the [official NSE EOD/Historical subscription page](https://www.nseindia.com/static/market-data/eod-historical-data-subscription) was updated 02 Sep 2026 and stated that EOD Order & Trade data is delivered through SFTP, Historical Order & Trade data through the online platform, and CM coverage includes order/trade information plus index value. It links a public CM sample and directs subscription questions to `marketdata@nse.co.in` / `+91-22-2659 8385`. The [NSE Data & Analytics vending page](https://www.nseindia.com/static/nse-data-and-analytics/data-information-vending) lists pricing effective 01 Apr 2026, but a current product-specific written quote and permitted-use terms are still required.
+
+**CONFIRMED FROM NSE DOCUMENTATION AND LOCAL REPRODUCTION (2026-10-27):** The official subscription page still lists one 8.8 MB public CM Order/Trade sample and no separate current-Trim sample. The listed sample is the supplied, hash-qualified legacy Full archive below. Fresh opt-in runs against the exact supplied archives framed all 300,000 legacy Order and 300,000 legacy Trade records with zero residue and reproduced all five documented `.gz` suffix/content mismatches. Neither supplied CM archive contains current Trim 68/82-byte paired streams or `.trg` files, so the no-purchase sample path does not close the representative-data gate.
 
 The supplied EOD tariff lists domestic CM EOD data at Rs 1,00,000 per display medium and requires consent for client usage. It must not be used as the budget for Historical Order & Trade data.
 

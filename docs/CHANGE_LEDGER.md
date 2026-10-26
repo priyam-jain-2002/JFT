@@ -2,6 +2,17 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-27 - Reverify the no-purchase CM data ceiling
+
+- **Changed:** Rechecked the current official NSE EOD/Historical subscription channel and reran both repository opt-in external-data tests directly against the supplied CM archives. Updated the governing checklist with the dated result; no parser, replay, manifest, Python, or application behavior changed.
+- **Why:** Active DEC-2026-010 is ready for representative identified-source qualification, but moving forward requires knowing whether the already supplied/public data can satisfy that gate before asking the owner to spend money.
+- **Evidence:** The public-sample test framed exactly 300,000 legacy 87-byte Orders and 300,000 legacy 100-byte Trades with zero residue and validated the documented numeric-field domains. The historical/EOD package test reproduced all five misleading `.gz` suffix/content cases. Archive inventory shows no Trim 68/82-byte paired streams and no `.trg` files. The official page still lists only the same 8.8 MB CM public sample and directs subscription inquiries to NSE Data & Analytics.
+- **Conclusion:** The supplied files remain useful for legacy structural and negative-path evidence, but cannot accept Phase 1, validate triggers, choose cross-stream ordering, or qualify current Trim semantics. A current Historical Order & Trade quote and a minimal representative paired-data acquisition are owner decisions; no purchase or vendor contact was made.
+- **Related:** Phase 0 current-data acquisition; Phase 1 representative-data acceptance; active DEC-2026-010.
+- **Follow-up:** Ask NSE Data & Analytics for a written quote and the smallest representative current CM Trim package only after the owner approves that external contact/spend step.
+
+---
+
 ## 2026-10-25 - Activate and implement replay/source identity binding
 
 - **Changed:** Activated owner-approved DEC-2026-010. Added a private-field source identity computed from the exact decompressed bytes; an additive identified Order/Trade source boundary; fail-closed logical filename, prefix, product, kind, date, stream-member, and delivery validation before parsing; one identity reference per stream; lazy quarantine record identities; and post-replay manifest-v1 assembly/exact verification from derived byte, count, residue, and raw-jiffy evidence plus caller-supplied compressed, trigger, and processing evidence. Byte-only APIs remain for fixtures.
