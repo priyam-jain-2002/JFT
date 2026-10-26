@@ -2,6 +2,17 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-27 - Reject a speculative trigger-file parser
+
+- **Changed:** Audited the supplied NSE v1.19 specification's Trim and Full trigger tables against the implemented manifest contract. Clarified the governing data contract and Phase 1 checklist; no parser or application code changed.
+- **Why:** The document names MD5 and compressed byte size as logical trigger fields, but its examples do not define a deterministic serialization contract. Treating illustrative prose as wire grammar would create a parser that could silently accept the wrong bytes and undermine the fail-closed manifest boundary.
+- **Evidence:** Visual inspection of sections 2.1.9 (page 29) and 3.1.10 (page 57) confirms that delimiter, whitespace, line ending, field order, filename/prose inclusion, MD5 case, and trailing-byte rules are absent. No supplied archive contains a `.trg` file that could resolve those ambiguities. Existing Rust tests already prove all five MD5/size verification outcomes once a typed declaration is available.
+- **Conclusion:** Production `.trg` parsing is not safely implementable from the current evidence. The repository will retain typed trigger verification while refusing to guess the raw-file grammar.
+- **Related:** Active DEC-2026-009 and DEC-2026-010; Phase 1 compressed-input and manifest gate.
+- **Follow-up:** Obtain one authentic trigger per data-file form or a written byte grammar from NSE Data & Analytics, then add strict golden/mutation tests before implementing the Rust parser.
+
+---
+
 ## 2026-10-27 - Reverify the no-purchase CM data ceiling
 
 - **Changed:** Rechecked the current official NSE EOD/Historical subscription channel and reran both repository opt-in external-data tests directly against the supplied CM archives. Updated the governing checklist with the dated result; no parser, replay, manifest, Python, or application behavior changed.
