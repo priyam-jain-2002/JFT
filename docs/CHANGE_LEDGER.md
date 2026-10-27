@@ -2,6 +2,17 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-27 - Falsify direct trade decrement as the legacy-book repair
+
+- **Changed:** Added the bounded candidate-semantics result to the legacy alpha evidence and governing checklist; no production parser, replay, or quantity rule changed.
+- **Why:** The first pilot found a 99.7% crossed order-only book. Before blaming the absence of trade-driven quantity depletion or implementing a guessed fix, the candidate interpretation needed a direct comparison on the supplied sample.
+- **Evidence:** A raw-jiffy merge over the selected `bbbbbbbBEL`/`EQ` records compared no decrement with strict two-sided direct decrement under both equal-jiffy tie policies. Only 2,585 of 13,614 Trades had both referenced orders active, while 11,029 missed at least one reference; valid pairs had zero side mismatch and zero overfill. No Trade shared an Order jiffy. Direct decrement changed crossed Order observation points from 12,786 to 12,785 of 12,829, and both tie policies were identical.
+- **Conclusion:** Missing decrement is not a sufficient explanation and direct decrement is not an evidence-backed repair for this legacy sample. Production trade quantity semantics remain unresolved; incomplete/anonymized sample construction, legacy Full semantics, or absent lifecycle context remain possible.
+- **Related:** Phase 1 temporal trade-reference and quantity-semantics gate; [legacy alpha pilot](research/LEGACY_ALPHA_PILOT.md).
+- **Follow-up:** Obtain representative paired current streams and measure reference coverage/timing before comparing no-decrement, direct-decrement, and mixed interpretations under a predeclared acceptance rule.
+
+---
+
 ## 2026-10-27 - Run the bounded legacy-sample alpha pilot
 
 - **Changed:** Added two research-only Rust exporters that keep legacy 87/100-byte raw decoding and book work inside the authoritative data plane; added typed Python chronological evaluation over Rust-emitted outputs; recorded the exact report, input hashes, methodology, results, limitations, and phase/checklist outcome. No current Trim production parser, canonical event schema, simulator, broker, or trading code was added.

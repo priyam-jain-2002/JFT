@@ -156,6 +156,8 @@ Observed sample diagnostics:
 
 The Order pilot applied 12,829 of 12,892 selected events but produced only 21 normal/locked snapshots and 12,786 crossed observations. The book-imbalance test was rejected because this order-only legacy reconstruction is not semantically healthy enough for alpha evaluation.
 
+A bounded follow-up tested strict two-sided trade decrement without adopting it. Only 2,585 of 13,614 selected Trades had both referenced orders active; 11,029 lacked at least one active reference. Decrement reduced crossed observations by only one, from 12,786 to 12,785 of 12,829 Order observation points. No selected Trade shared an Order jiffy, and both tie policies were identical. Missing trade decrement is therefore not a sufficient explanation or justified repair for this sample.
+
 The separate trade-price momentum pilot used 13,614 prints and non-overlapping 60/20/20 chronological windows. In the final window, hit rate was 38.10%, 41.18%, and 50.00% at 10/50/200 trades versus majority baselines of 46.03%, 50.00%, and 50.00%; IC was negative at all horizons (`-0.2538`, `-0.1892`, `-0.2309`), and gross pre-cost signed return was negative at all horizons (`-0.6162`, `-0.8294`, `-3.6623` bps). The predeclared momentum hypothesis therefore fails. The mechanically implied reversal observation is post-hoc and may be bid/ask bounce, so it is not promoted to alpha. See the [full pilot evidence](research/LEGACY_ALPHA_PILOT.md).
 
 #### Legacy CM historical/EOD sample-product qualification

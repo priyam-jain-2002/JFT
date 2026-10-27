@@ -1,0 +1,39 @@
+{
+  "candidate_semantics": "decrement both referenced active orders only when both exist, sides match, and quantities do not overfill",
+  "direct_decrement": {
+    "book": {
+      "crossed": 12785,
+      "locked": 0,
+      "normal": 22,
+      "observations": 12829,
+      "one_sided_or_empty": 22,
+      "order_anomalies": 63
+    },
+    "trades": {
+      "applied": 2585,
+      "missing_active_reference": 11029,
+      "overfill": 0,
+      "side_mismatch": 0,
+      "total": 13614
+    }
+  },
+  "equal_jiffy": {
+    "order_first_equals_trade_first": true,
+    "trades_sharing_any_order_jiffy": 0
+  },
+  "instrument": {
+    "series_raw": "EQ",
+    "symbol_raw": "bbbbbbbBEL"
+  },
+  "no_decrement": {
+    "book": {
+      "crossed": 12786,
+      "locked": 0,
+      "normal": 21,
+      "observations": 12829,
+      "one_sided_or_empty": 22,
+      "order_anomalies": 63
+    }
+  },
+  "outcome": "direct decrement is not a sufficient repair and remains unapproved"
+}

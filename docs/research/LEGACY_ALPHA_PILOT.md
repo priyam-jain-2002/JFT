@@ -36,6 +36,24 @@ Observed evidence:
 
 **Outcome: REJECTED AS AN ALPHA DATASET.** Only 21 usable snapshots remain, while 99.7% of applied observations are crossed (`12,786 / 12,829`). The present order-only reconstruction is therefore not a credible basis for a book-imbalance alpha claim on this file. Likely explanations include missing trade-driven quantity depletion, legacy Full quantity semantics, or other absent ordering/session evidence; the pilot does not choose among them.
 
+### Candidate trade-decrement diagnostic
+
+A follow-up experimental comparison tested whether the missing trade-driven decrement alone explains the crossed state. It merged the selected 12,892 Orders and 13,614 Trades by raw jiffy, then compared the existing no-decrement state with a strict candidate interpretation that decrements both referenced active orders only when both references exist, sides match, and quantities do not overfill. This is a measurement, not an adopted replay rule.
+
+| Metric | No decrement | Strict direct decrement |
+|---|---:|---:|
+| Order observations | 12,829 | 12,829 |
+| Normal | 21 | 22 |
+| Locked | 0 | 0 |
+| Crossed | 12,786 (99.6648%) | 12,785 (99.6570%) |
+| One-sided/empty | 22 | 22 |
+
+Only 2,585 of 13,614 Trades (18.9878%) could apply the strict two-sided decrement. The remaining 11,029 lacked at least one currently active referenced order; there were zero side mismatches and zero overfills among the fully found pairs. No selected Trade shared a raw jiffy with any selected Order, and order-first versus trade-first tie policies produced identical results.
+
+**Outcome: MISSING TRADE DECREMENT IS NOT A SUFFICIENT EXPLANATION.** It improves one observation and leaves more than 99.65% crossed. This evidence rejects implementing direct decrement as a repair for this public sample. Incomplete/anonymized sample construction, unqualified legacy Full field semantics, or absent lifecycle context remain credible explanations. Representative paired current data is required to distinguish them.
+
+The exact comparison counts are tracked in [`legacy_book_semantics_probe.json`](legacy_book_semantics_probe.json).
+
 ## Pilot B: trade-price momentum
 
 Because it does not require book semantics, a second fixed hypothesis tests whether the sign of the previous trade-price return predicts the sign of the next return at 10-, 50-, and 200-trade horizons.
@@ -68,6 +86,7 @@ This pilot is a useful negative result:
 
 - the existing deterministic components run on the entire supplied legacy files;
 - the order-only book is not semantically healthy enough for alpha work;
+- a strict direct-decrement candidate does not materially repair that book;
 - the simplest trade-price momentum rule does not survive the final chronological window;
 - no Phase 2 alpha claim, simulator work, model escalation, or capital decision is justified.
 
