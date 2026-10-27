@@ -150,6 +150,14 @@ Observed sample diagnostics:
 
 **Phase 0 conclusion:** The public archive is suitable for legacy fixed-width parser fixtures and negative/incomplete-replay tests. It is not representative paired data and cannot satisfy the deterministic-reconstruction, Trim qualification, trigger-integrity, current-layout, or Trim-versus-Full gates.
 
+#### Limited-data alpha pilot
+
+**RESEARCH HYPOTHESIS / NEGATIVE RESULT:** A bounded pilot used the entire supplied 300,000-record legacy Order file and 300,000-record legacy Trade file while preserving the Rust/Python boundary. Rust selected the most active first-60%-window instrument (`bbbbbbbBEL`, `EQ`), parsed raw fixed-width records, and performed the book/export work; Python consumed only Rust-emitted trade prints for chronological evaluation.
+
+The Order pilot applied 12,829 of 12,892 selected events but produced only 21 normal/locked snapshots and 12,786 crossed observations. The book-imbalance test was rejected because this order-only legacy reconstruction is not semantically healthy enough for alpha evaluation.
+
+The separate trade-price momentum pilot used 13,614 prints and non-overlapping 60/20/20 chronological windows. In the final window, hit rate was 38.10%, 41.18%, and 50.00% at 10/50/200 trades versus majority baselines of 46.03%, 50.00%, and 50.00%; IC was negative at all horizons (`-0.2538`, `-0.1892`, `-0.2309`), and gross pre-cost signed return was negative at all horizons (`-0.6162`, `-0.8294`, `-3.6623` bps). The predeclared momentum hypothesis therefore fails. The mechanically implied reversal observation is post-hoc and may be bid/ask bounce, so it is not promoted to alpha. See the [full pilot evidence](research/LEGACY_ALPHA_PILOT.md).
+
 #### Legacy CM historical/EOD sample-product qualification
 
 **CONFIRMED FROM NSE DOCUMENTATION:** `Data_details_CM_1.pdf` defines a separate six-directory historical package: Bhav copy, Index, Masters, Snapshots, Trades, and Circulars. Its snapshots are point-in-time book states and its Trades data carries second-resolution timestamps; neither is the jiffy-timestamped lifecycle event stream defined by v1.19.
@@ -586,6 +594,7 @@ Orders + Trades -> integrity -> parser -> raw-event validation -> jiffy validati
 - [x] Compose validated Order and Trade stream sets into one deterministic in-memory Trim evidence report with exact delivery/member identity, checked summaries, candidate diagnostics, quarantine, and framing evidence. Reject incomplete Order coverage or cross-date/prefix Trades before reading mismatched Trade bytes; emit no durable canonical artifact yet.
 - [x] Prove the composed Trim report and streaming Trade observations are invariant under all four independent forward/reversed combinations of the two-member Order and Trade caller-source arrays. Normalize each validated stream set independently; never rely on coupled caller ordering or imply an Order/Trade event merge.
 - [x] Classify every nonzero per-stream parser, lifecycle, framing, trade-reference ambiguity/side, and equal/after raw-jiffy observation in a fixed deterministic taxonomy while retaining the complete underlying evidence. Do not assign severity, causality, thresholds, or vendor fault from synthetic fixtures.
+- [x] Run one bounded, reproducible legacy-sample alpha diagnostic before adding further infrastructure. The reconstructed Order book was overwhelmingly crossed and therefore rejected for imbalance testing; the separate trade-price momentum hypothesis failed the final chronological window at all three horizons. Preserve this negative result and do not mine the same final window for a replacement claim.
 - [ ] Establish temporal trade-reference timing through an evidenced cross-stream merge, then test no-decrement, direct-decrement, and mixed execution interpretations; source membership alone must not choose quantity semantics.
 - [x] Preserve `PO`, `RM`, and `CA` as distinct typed components of provisional order, book, and trade-reference identity. Prove that equal numeric order IDs coexist across all three and that cross-session modify/cancel attempts fail closed without mutating another session.
 - [x] Count every parsed Order and Trade event by `PO`, `RM`, and `CA` per source and across independent streams with checked arithmetic; require those counts to reconcile to parsed records. These counts measure coverage only and define no transition or reset behavior.

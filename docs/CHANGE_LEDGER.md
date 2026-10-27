@@ -2,6 +2,17 @@
 
 This append-only ledger records meaningful repository changes. Newest entries go first; existing historical entries remain intact.
 
+## 2026-10-27 - Run the bounded legacy-sample alpha pilot
+
+- **Changed:** Added two research-only Rust exporters that keep legacy 87/100-byte raw decoding and book work inside the authoritative data plane; added typed Python chronological evaluation over Rust-emitted outputs; recorded the exact report, input hashes, methodology, results, limitations, and phase/checklist outcome. No current Trim production parser, canonical event schema, simulator, broker, or trading code was added.
+- **Why:** The supplied sample should produce an empirical signal-quality result before the project invests in more infrastructure. A fixed, transparent diagnostic can falsify simple hypotheses without pretending that one legacy sample day is production-quality evidence.
+- **Evidence:** The Order run processed all 300,000 records, selected 12,892 `bbbbbbbBEL`/`EQ` events, applied 12,829, and observed 12,786 crossed versus only 21 normal snapshots; the book-imbalance dataset was rejected. The Trade run processed all 300,000 records, exported 13,614 selected trades, and used non-overlapping chronological 60/20/20 windows. Final-window momentum hit rates were 38.10%/41.18%/50.00% at 10/50/200 trades, IC was negative at all horizons, and gross pre-cost signed return was `-0.6162`/`-0.8294`/`-3.6623` bps. Focused Rust and Python tests prove field projection, fail-closed numerics, chronological calculations, and invalid-input rejection.
+- **Conclusion:** The predeclared momentum hypothesis fails, and the current order-only legacy reconstruction is not fit for book alpha. The apparent reversal direction is post-hoc and may be bid/ask bounce; it is not accepted. Phase 2 remains blocked pending representative multi-day current data and validated book semantics.
+- **Related:** Phase 0 public-sample qualification; Phase 1 book/trade semantics; Phase 2 signal gate; [pilot report](research/LEGACY_ALPHA_PILOT.md).
+- **Follow-up:** Do not reuse the opened final window as untouched evidence. Obtain representative paired current data, predeclare the next feature/label/cost protocol, and rerun across multiple days before any model or simulator escalation.
+
+---
+
 ## 2026-10-27 - Reject a speculative trigger-file parser
 
 - **Changed:** Audited the supplied NSE v1.19 specification's Trim and Full trigger tables against the implemented manifest contract. Clarified the governing data contract and Phase 1 checklist; no parser or application code changed.

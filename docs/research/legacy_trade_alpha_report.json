@@ -1,0 +1,99 @@
+{
+  "horizons": [
+    {
+      "horizon_trades": 10,
+      "test": {
+        "hit_rate": 0.38095238095238093,
+        "horizon_trades": 10,
+        "information_coefficient": -0.253804238198778,
+        "majority_hit_rate": 0.4603174603174603,
+        "mean_abs_forward_return_bps": 2.5761735324881356,
+        "mean_gross_signal_return_bps": -0.616150797374414,
+        "nonzero_labels": 126,
+        "samples": 271,
+        "training_majority_direction": -1
+      },
+      "validation": {
+        "hit_rate": 0.43902439024390244,
+        "horizon_trades": 10,
+        "information_coefficient": -0.15502407368975557,
+        "majority_hit_rate": 0.5121951219512195,
+        "mean_abs_forward_return_bps": 2.387032012729788,
+        "mean_gross_signal_return_bps": -0.47898328691520786,
+        "nonzero_labels": 123,
+        "samples": 271,
+        "training_majority_direction": -1
+      }
+    },
+    {
+      "horizon_trades": 50,
+      "test": {
+        "hit_rate": 0.4117647058823529,
+        "horizon_trades": 50,
+        "information_coefficient": -0.18917642758868478,
+        "majority_hit_rate": 0.5,
+        "mean_abs_forward_return_bps": 4.472254119524104,
+        "mean_gross_signal_return_bps": -0.8293892429377143,
+        "nonzero_labels": 34,
+        "samples": 53,
+        "training_majority_direction": -1
+      },
+      "validation": {
+        "hit_rate": 0.47058823529411764,
+        "horizon_trades": 50,
+        "information_coefficient": -0.0021042166371862112,
+        "majority_hit_rate": 0.47058823529411764,
+        "mean_abs_forward_return_bps": 4.732511997560568,
+        "mean_gross_signal_return_bps": 0.372049813004772,
+        "nonzero_labels": 34,
+        "samples": 53,
+        "training_majority_direction": -1
+      }
+    },
+    {
+      "horizon_trades": 200,
+      "test": {
+        "hit_rate": 0.5,
+        "horizon_trades": 200,
+        "information_coefficient": -0.23088017889285456,
+        "majority_hit_rate": 0.5,
+        "mean_abs_forward_return_bps": 8.417893060365992,
+        "mean_gross_signal_return_bps": -3.6623315614805514,
+        "nonzero_labels": 12,
+        "samples": 12,
+        "training_majority_direction": -1
+      },
+      "validation": {
+        "hit_rate": 0.6666666666666666,
+        "horizon_trades": 200,
+        "information_coefficient": 0.27594009848326817,
+        "majority_hit_rate": 0.5555555555555556,
+        "mean_abs_forward_return_bps": 6.600543561936582,
+        "mean_gross_signal_return_bps": 2.3834500715995137,
+        "nonzero_labels": 9,
+        "samples": 12,
+        "training_majority_direction": -1
+      }
+    }
+  ],
+  "limitations": [
+    "One anonymized public legacy sample day is not independent out-of-sample evidence.",
+    "Trade-event horizons are not clock-time horizons and activity varies intraday.",
+    "Gross signal return is mark-to-trade-price diagnostics, not executable P&L.",
+    "The pilot ignores spread, fees, latency, slippage, impact, and fill probability."
+  ],
+  "methodology": "Past trade-price return predicts same-direction future trade-price return. Chronological 60/20/20 windows; non-overlapping observations; fixed sign; no parameter tuning, fees, spread, latency, slippage, or fill model.",
+  "test_range": [
+    10891,
+    13614
+  ],
+  "trade_count": 13614,
+  "train_range": [
+    0,
+    8168
+  ],
+  "validation_range": [
+    8168,
+    10891
+  ]
+}

@@ -42,6 +42,8 @@ The approved manifest-v1 scope of active [DEC-2026-009](docs/decisions/DECISION_
 
 Phase 0 remains open only for technical work that cannot be completed from the supplied samples: representative paired current CM Trim Orders/Trades and triggers, actual stream/schema inventory, delivery controls, and budget approval. These items do not block initial Phase 1 fixtures and interfaces, but representative current data is required to accept Phase 1. Legal/compliance remains visibly marked as something the owner needs to complete before operational activation, outside repository scope.
 
+A bounded [legacy-sample alpha pilot](docs/research/LEGACY_ALPHA_PILOT.md) has now been run rather than adding more speculative infrastructure. It produced a useful negative result: the order-only book was overwhelmingly crossed, and the fixed trade-price momentum hypothesis underperformed or matched its majority baseline with negative final-window IC and gross pre-cost signal return at every tested horizon. This does not support moving to Phase 2 or capital; it identifies validated book semantics and representative multi-day current data as the next evidence gate.
+
 ## Current engineering checks
 
 ```bash

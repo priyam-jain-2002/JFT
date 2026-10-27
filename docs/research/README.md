@@ -18,3 +18,4 @@ Current priority questions are licensing/derived-use rights, Trim-versus-Full re
 ## Current evidence notes
 
 - [Phase 2 primary research evidence](PHASE2_PRIMARY_EVIDENCE.md) verifies RP-001 through RP-005, separates reported external results from JFT hypotheses, and leaves Phase 3 execution/fill evidence open.
+- [Legacy CM limited-data alpha pilot](LEGACY_ALPHA_PILOT.md) records the reproducible negative book-imbalance and trade-momentum results from the supplied public legacy sample without promoting them to Phase 2 evidence.
